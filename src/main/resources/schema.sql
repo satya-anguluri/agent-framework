@@ -25,3 +25,7 @@ CREATE TABLE IF NOT EXISTS jira_work (
  jira_key TEXT PRIMARY KEY, summary TEXT NOT NULL, description TEXT, acceptance_criteria TEXT,
  affected_repositories TEXT, implementation_summary TEXT, final_commits TEXT, updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS jira_sources (
+ jira_key TEXT PRIMARY KEY REFERENCES jira_work(jira_key) ON DELETE CASCADE,
+ source_url TEXT NOT NULL, source_updated_at TEXT, imported_at TEXT NOT NULL
+);

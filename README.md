@@ -14,8 +14,10 @@ It builds a focused knowledge index, then requires the agent to inspect current 
 - Derive deterministic cross-repository relationships for shared tables/routes
 - Produce a blast-radius evidence report with facts separated from possible impact
 - Search using SQLite FTS5
+- Import normalized Jira work items with source URL/update provenance
+- Generate a Jira-driven blast-radius evidence report
 
-The schema reserves Jira work and architecture-decision records; Jira synchronization and decision-management commands are planned next.
+Direct Jira API synchronization and architecture-decision management are planned next. The current import contract is intentionally connector-neutral.
 
 ## Quick start
 
@@ -28,6 +30,8 @@ java -jar target/agent-framework-0.1.0-SNAPSHOT.jar init --db .agent/context.db
 java -jar target/agent-framework-0.1.0-SNAPSHOT.jar index --db .agent/context.db --config config/repositories.json
 java -jar target/agent-framework-0.1.0-SNAPSHOT.jar search --db .agent/context.db "rollback deployment status"
 java -jar target/agent-framework-0.1.0-SNAPSHOT.jar blast-radius --db .agent/context.db "deployment"
+java -jar target/agent-framework-0.1.0-SNAPSHOT.jar jira-import --db .agent/context.db --file examples/jira-work-item.json
+java -jar target/agent-framework-0.1.0-SNAPSHOT.jar jira-blast-radius --db .agent/context.db FHB-1234
 ```
 
 Authentication and cloning stay outside the indexer, preventing credentials from entering the knowledge database.

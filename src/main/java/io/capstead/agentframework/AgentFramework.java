@@ -1,6 +1,7 @@
 package io.capstead.agentframework;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.capstead.agentframework.model.JiraWorkItem;
 import io.capstead.agentframework.model.RepositoryConfig;
 import picocli.CommandLine;
 import picocli.CommandLine.*;
@@ -8,7 +9,9 @@ import java.nio.file.*;
 import java.util.concurrent.Callable;
 
 @Command(name="agent-framework",mixinStandardHelpOptions=true,
- subcommands={AgentFramework.Init.class,AgentFramework.Index.class,AgentFramework.Search.class,AgentFramework.BlastRadius.class})
+ subcommands={AgentFramework.Init.class,AgentFramework.Index.class,AgentFramework.Search.class,
+ AgentFramework.BlastRadius.class,AgentFramework.JiraImport.class,AgentFramework.JiraShow.class,
+ AgentFramework.JiraBlastRadius.class})
 public class AgentFramework implements Runnable{
  public static void main(String[]args){System.exit(new CommandLine(new AgentFramework()).execute(args));}
  public void run(){CommandLine.usage(this,System.out);}
@@ -42,11 +45,44 @@ public class AgentFramework implements Runnable{
  static class BlastRadius extends DbCommand implements Callable<Integer>{
   @Parameters(index="0")String query;@Option(names="--limit",defaultValue="50")int limit;
   public Integer call()throws Exception{try(var store=new SqliteKnowledgeStore(db)){
-   if(!verifyCurrent(store))return 2;
-   System.out.println("OBSERVED MATCHES AND DETERMINISTIC RELATIONSHIPS");
-   for(String row:store.blastRadius(query,limit))System.out.println(row);
-   System.out.println("\nPossible impact must be verified against current callers, tests, messages, and rollout order.");
+   if(!verifyCurrent(store))return 2;printBlastRadius(store.blastRadius(query,limit));
   }return 0;}}
+
+ @Command(name="jira-import",description="Import a normalized Jira work item JSON document")
+ static class JiraImport extends DbCommand implements Callable<Integer>{
+  @Option(names="--file",required=true)Path file;
+  public Integer call()throws Exception{
+   JiraWorkItem item=new ObjectMapper().readValue(file.toFile(),JiraWorkItem.class);
+   item.validate();
+   try(var store=new SqliteKnowledgeStore(db)){store.initialize();store.upsertJiraWork(item);}
+   System.out.printf("Imported %s from %s%n",item.key(),item.sourceUrl());return 0;}}
+
+ @Command(name="jira-show",description="Show an imported Jira work item")
+ static class JiraShow extends DbCommand implements Callable<Integer>{
+  @Parameters(index="0")String key;
+  public Integer call()throws Exception{try(var store=new SqliteKnowledgeStore(db)){
+   JiraWorkItem item=store.jiraWork(key).orElseThrow(()->new ParameterException(spec.commandLine(),"Unknown Jira key: "+key));
+   System.out.printf("%s — %s%nSource: %s%nSource updated: %s%n%n%s%n%nAcceptance criteria:%n%s%n",
+    item.key(),item.summary(),item.sourceUrl(),item.sourceUpdatedAt(),item.description(),item.acceptanceCriteria());
+  }return 0;}@Spec CommandSpec spec;}
+
+ @Command(name="jira-blast-radius",description="Generate evidence matches from an imported Jira work item")
+ static class JiraBlastRadius extends DbCommand implements Callable<Integer>{
+  @Parameters(index="0")String key;@Option(names="--limit",defaultValue="50")int limit;
+  public Integer call()throws Exception{try(var store=new SqliteKnowledgeStore(db)){
+   if(!verifyCurrent(store))return 2;
+   JiraWorkItem item=store.jiraWork(key).orElseThrow(()->new ParameterException(spec.commandLine(),"Unknown Jira key: "+key));
+   System.out.printf("JIRA %s — %s%nSource: %s%n%n",item.key(),item.summary(),item.sourceUrl());
+   printBlastRadius(store.jiraBlastRadius(key,limit));
+  }return 0;}@Spec CommandSpec spec;}
+
+ private static void printBlastRadius(java.util.List<String> rows){
+  System.out.println("OBSERVED MATCHES AND DETERMINISTIC RELATIONSHIPS");
+  if(rows.isEmpty())System.out.println("No indexed evidence matched this work item.");
+  else rows.forEach(System.out::println);
+  System.out.println("\nPOSSIBLE IMPACT (NOT DIAGNOSIS)");
+  System.out.println("Verify current callers, APIs, messages, migrations, tests, compatibility, and rollout order.");
+ }
 
  private static boolean verifyCurrent(SqliteKnowledgeStore store)throws Exception{
   boolean current=true;

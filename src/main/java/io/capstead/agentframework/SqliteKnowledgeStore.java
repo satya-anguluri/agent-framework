@@ -1,6 +1,7 @@
 package io.capstead.agentframework;
 
 import io.capstead.agentframework.model.KnowledgeItem;
+import io.capstead.agentframework.model.JiraWorkItem;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -108,6 +109,57 @@ final class SqliteKnowledgeStore implements AutoCloseable {
                 rs.getString(6),rs.getString(7)));}
         }
         return rows;
+    }
+
+
+    void upsertJiraWork(JiraWorkItem item)throws SQLException{
+        connection.setAutoCommit(false);
+        try{
+            try(PreparedStatement ps=connection.prepareStatement("""
+                INSERT INTO jira_work(jira_key,summary,description,acceptance_criteria,updated_at)
+                VALUES(?,?,?,?,?) ON CONFLICT(jira_key) DO UPDATE SET summary=excluded.summary,
+                description=excluded.description,acceptance_criteria=excluded.acceptance_criteria,
+                updated_at=excluded.updated_at""")){
+                ps.setString(1,item.key());ps.setString(2,item.summary());ps.setString(3,item.description());
+                ps.setString(4,item.acceptanceCriteria());ps.setString(5,Instant.now().toString());ps.executeUpdate();
+            }
+            try(PreparedStatement ps=connection.prepareStatement("""
+                INSERT INTO jira_sources(jira_key,source_url,source_updated_at,imported_at)
+                VALUES(?,?,?,?) ON CONFLICT(jira_key) DO UPDATE SET source_url=excluded.source_url,
+                source_updated_at=excluded.source_updated_at,imported_at=excluded.imported_at""")){
+                ps.setString(1,item.key());ps.setString(2,item.sourceUrl());ps.setString(3,item.sourceUpdatedAt());
+                ps.setString(4,Instant.now().toString());ps.executeUpdate();
+            }
+            connection.commit();
+        }catch(SQLException e){connection.rollback();throw e;}finally{connection.setAutoCommit(true);}
+    }
+
+    Optional<JiraWorkItem> jiraWork(String key)throws SQLException{
+        try(PreparedStatement ps=connection.prepareStatement("""
+            SELECT w.jira_key,w.summary,w.description,w.acceptance_criteria,s.source_url,s.source_updated_at
+            FROM jira_work w JOIN jira_sources s ON s.jira_key=w.jira_key WHERE w.jira_key=?""")){
+            ps.setString(1,key);
+            try(ResultSet rs=ps.executeQuery()){
+                if(!rs.next())return Optional.empty();
+                return Optional.of(new JiraWorkItem(rs.getString(1),rs.getString(2),rs.getString(3),
+                        rs.getString(4),rs.getString(5),rs.getString(6)));
+            }
+        }
+    }
+
+    List<String> jiraBlastRadius(String key,int limit)throws SQLException{
+        JiraWorkItem item=jiraWork(key).orElseThrow(()->new IllegalArgumentException("Unknown Jira key: "+key));
+        String query=ftsQuery(item.summary()+" "+Objects.toString(item.description(),"")+" "+
+                Objects.toString(item.acceptanceCriteria(),""));
+        if(query.isBlank())return List.of();
+        return blastRadius(query,limit);
+    }
+
+    private String ftsQuery(String text){
+        LinkedHashSet<String> terms=new LinkedHashSet<>();
+        java.util.regex.Matcher matcher=java.util.regex.Pattern.compile("[A-Za-z][A-Za-z0-9_/-]{2,}").matcher(text);
+        while(matcher.find()&&terms.size()<12)terms.add("\\\""+matcher.group().replace("\\\"","")+"\\\"");
+        return String.join(" OR ",terms);
     }
 
     private int countParameters(String sql){return (int)sql.chars().filter(c->c=='?').count();}

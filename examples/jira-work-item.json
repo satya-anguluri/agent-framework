@@ -1,0 +1,8 @@
+{
+  "key": "FHB-1234",
+  "summary": "Store mapper validation status for every deployment",
+  "description": "Persist mapper validation status and expose it in deployment status responses.",
+  "acceptanceCriteria": "Status is written after mapping; existing deployments remain readable; API returns the new status.",
+  "sourceUrl": "https://jira.example.com/browse/FHB-1234",
+  "sourceUpdatedAt": "2026-09-18T18:00:00Z"
+}
