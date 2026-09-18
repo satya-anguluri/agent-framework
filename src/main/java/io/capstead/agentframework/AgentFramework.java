@@ -5,6 +5,7 @@ import io.capstead.agentframework.model.JiraWorkItem;
 import io.capstead.agentframework.model.RepositoryConfig;
 import picocli.CommandLine;
 import picocli.CommandLine.*;
+import picocli.CommandLine.Model.CommandSpec;
 import java.nio.file.*;
 import java.util.concurrent.Callable;
 
