@@ -2,6 +2,7 @@ package io.capstead.agentframework;
 
 import io.capstead.agentframework.model.KnowledgeItem;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.*;
 import java.util.*;
 import java.util.regex.*;
