@@ -102,7 +102,7 @@ final class SqliteKnowledgeStore implements AutoCloseable {
         List<String> rows=new ArrayList<>();
         try(PreparedStatement ps=connection.prepareStatement(sql)){
             ps.setString(1,query);ps.setInt(2,limit);
-            if(sql.contains("LIMIT ?"""")==false && countParameters(sql)>2)ps.setInt(3,limit);
+            if(countParameters(sql)>2)ps.setInt(3,limit);
             try(ResultSet rs=ps.executeQuery()){while(rs.next())rows.add("%s | %s | %s | %s:%s | %s%n  %s".formatted(
                 rs.getString(1),rs.getString(2),rs.getString(3),rs.getString(4),Objects.toString(rs.getObject(5),"-"),
                 rs.getString(6),rs.getString(7)));}
