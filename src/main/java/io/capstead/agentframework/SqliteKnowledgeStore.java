@@ -158,7 +158,7 @@ final class SqliteKnowledgeStore implements AutoCloseable {
     private String ftsQuery(String text){
         LinkedHashSet<String> terms=new LinkedHashSet<>();
         java.util.regex.Matcher matcher=java.util.regex.Pattern.compile("[A-Za-z][A-Za-z0-9_/-]{2,}").matcher(text);
-        while(matcher.find()&&terms.size()<12)terms.add("\\\""+matcher.group().replace("\\\"","")+"\\\"");
+        while(matcher.find()&&terms.size()<12)terms.add("\""+matcher.group().replace("\"","")+"\"");
         return String.join(" OR ",terms);
     }
 
