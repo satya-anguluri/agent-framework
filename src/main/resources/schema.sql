@@ -12,12 +12,6 @@ CREATE TABLE IF NOT EXISTS knowledge (
 CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_fts USING fts5(
  name, content, kind, source_path, content='knowledge', content_rowid='id'
 );
-CREATE TRIGGER IF NOT EXISTS knowledge_ai AFTER INSERT ON knowledge BEGIN
- INSERT INTO knowledge_fts(rowid,name,content,kind,source_path) VALUES(new.id,new.name,new.content,new.kind,new.source_path);
-END;
-CREATE TRIGGER IF NOT EXISTS knowledge_ad AFTER DELETE ON knowledge BEGIN
- INSERT INTO knowledge_fts(knowledge_fts,rowid,name,content,kind,source_path) VALUES('delete',old.id,old.name,old.content,old.kind,old.source_path);
-END;
 CREATE TABLE IF NOT EXISTS relationships (
  id INTEGER PRIMARY KEY, source_knowledge_id INTEGER NOT NULL REFERENCES knowledge(id) ON DELETE CASCADE,
  relation TEXT NOT NULL, target_kind TEXT NOT NULL, target_name TEXT NOT NULL,

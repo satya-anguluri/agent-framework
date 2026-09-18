@@ -58,6 +58,7 @@ final class SqliteKnowledgeStore implements AutoCloseable {
                 }
                 in.executeBatch();
             }
+            connection.createStatement().execute("INSERT INTO knowledge_fts(knowledge_fts) VALUES('rebuild')");
             connection.commit();
         } catch(SQLException e) { connection.rollback(); throw e; }
         finally { connection.setAutoCommit(true); }
