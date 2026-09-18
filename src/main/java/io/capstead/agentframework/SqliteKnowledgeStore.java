@@ -208,7 +208,7 @@ final class SqliteKnowledgeStore implements AutoCloseable {
             ps.setString(1,key.toUpperCase(Locale.ROOT));ps.setInt(2,limit);
             try(ResultSet rs=ps.executeQuery()){while(rs.next())rows.add(
                 "%s | %s | %s%n%s%nFiles:%n%s".formatted(rs.getString(1),rs.getString(2),rs.getString(3),
-                 rs.getString(4),rs.getString(5))));
+                 rs.getString(4),rs.getString(5)));
             }
         }
         return rows;
