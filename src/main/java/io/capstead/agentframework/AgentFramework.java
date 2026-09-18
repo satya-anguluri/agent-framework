@@ -12,7 +12,7 @@ import java.util.concurrent.Callable;
 @Command(name="agent-framework",mixinStandardHelpOptions=true,
  subcommands={AgentFramework.Init.class,AgentFramework.Index.class,AgentFramework.Search.class,
  AgentFramework.BlastRadius.class,AgentFramework.JiraImport.class,AgentFramework.JiraShow.class,
- AgentFramework.JiraBlastRadius.class})
+ AgentFramework.JiraBlastRadius.class,AgentFramework.HistoryIndex.class,AgentFramework.JiraHistory.class})
 public class AgentFramework implements Runnable{
  public static void main(String[]args){System.exit(new CommandLine(new AgentFramework()).execute(args));}
  public void run(){CommandLine.usage(this,System.out);}
@@ -76,6 +76,28 @@ public class AgentFramework implements Runnable{
    System.out.printf("JIRA %s — %s%nSource: %s%n%n",item.key(),item.summary(),item.sourceUrl());
    printBlastRadius(store.jiraBlastRadius(key,limit));
   }return 0;}@Spec CommandSpec spec;}
+
+
+ @Command(name="history-index",description="Index Jira-linked commits and changed files for configured repositories")
+ static class HistoryIndex extends DbCommand implements Callable<Integer>{
+  @Option(names="--config",required=true)Path config;
+  public Integer call()throws Exception{
+   RepositoryConfig cfg=new ObjectMapper().readValue(config.toFile(),RepositoryConfig.class);
+   try(var store=new SqliteKnowledgeStore(db)){store.initialize();for(var repo:cfg.repositories()){
+    Path root=Path.of(repo.localPath()).toAbsolutePath().normalize();
+    var commits=new GitHistoryScanner().scan(root);
+    store.replaceHistory(repo.name(),commits);
+    System.out.printf("Indexed %s history: %d Jira-linked commits%n",repo.name(),commits.size());
+   }}return 0;}}
+
+ @Command(name="jira-history",description="Show commits and changed files linked to a Jira key")
+ static class JiraHistory extends DbCommand implements Callable<Integer>{
+  @Parameters(index="0")String key;@Option(names="--limit",defaultValue="100")int limit;
+  public Integer call()throws Exception{try(var store=new SqliteKnowledgeStore(db)){
+   var rows=store.jiraHistory(key,limit);
+   if(rows.isEmpty())System.out.println("No Jira-linked commits found for "+key.toUpperCase());
+   else rows.forEach(System.out::println);
+  }return 0;}}
 
  private static void printBlastRadius(java.util.List<String> rows){
   System.out.println("OBSERVED MATCHES AND DETERMINISTIC RELATIONSHIPS");

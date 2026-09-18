@@ -2,6 +2,7 @@ package io.capstead.agentframework;
 
 import io.capstead.agentframework.model.KnowledgeItem;
 import io.capstead.agentframework.model.JiraWorkItem;
+import io.capstead.agentframework.model.HistoryCommit;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -160,6 +161,57 @@ final class SqliteKnowledgeStore implements AutoCloseable {
         java.util.regex.Matcher matcher=java.util.regex.Pattern.compile("[A-Za-z][A-Za-z0-9_/-]{2,}").matcher(text);
         while(matcher.find()&&terms.size()<12)terms.add("\""+matcher.group().replace("\"","")+"\"");
         return String.join(" OR ",terms);
+    }
+
+
+    void replaceHistory(String repositoryName,List<HistoryCommit> commits)throws SQLException{
+        long repoId;
+        try(PreparedStatement q=connection.prepareStatement("SELECT id FROM repositories WHERE name=?")){
+            q.setString(1,repositoryName);try(ResultSet rs=q.executeQuery()){
+                if(!rs.next())throw new IllegalStateException("Index repository before history: "+repositoryName);
+                repoId=rs.getLong(1);
+            }
+        }
+        connection.setAutoCommit(false);
+        try{
+            try(PreparedStatement del=connection.prepareStatement("DELETE FROM history_commits WHERE repository_id=?")){
+                del.setLong(1,repoId);del.executeUpdate();
+            }
+            try(PreparedStatement commit=connection.prepareStatement("""
+                    INSERT INTO history_commits(repository_id,commit_sha,committed_at,subject) VALUES(?,?,?,?)""");
+                PreparedStatement file=connection.prepareStatement("""
+                    INSERT INTO commit_files(repository_id,commit_sha,file_path) VALUES(?,?,?)""");
+                PreparedStatement jira=connection.prepareStatement("""
+                    INSERT INTO commit_jira(repository_id,commit_sha,jira_key) VALUES(?,?,?)""")){
+                for(HistoryCommit item:commits){
+                    commit.setLong(1,repoId);commit.setString(2,item.sha());commit.setString(3,item.committedAt());
+                    commit.setString(4,item.subject());commit.addBatch();
+                    for(String path:item.files()){file.setLong(1,repoId);file.setString(2,item.sha());file.setString(3,path);file.addBatch();}
+                    for(String key:item.jiraKeys()){jira.setLong(1,repoId);jira.setString(2,item.sha());jira.setString(3,key);jira.addBatch();}
+                }
+                commit.executeBatch();file.executeBatch();jira.executeBatch();
+            }
+            connection.commit();
+        }catch(SQLException e){connection.rollback();throw e;}finally{connection.setAutoCommit(true);}
+    }
+
+    List<String> jiraHistory(String key,int limit)throws SQLException{
+        List<String> rows=new ArrayList<>();
+        try(PreparedStatement ps=connection.prepareStatement("""
+            SELECT r.name,h.commit_sha,h.committed_at,h.subject,
+                   coalesce(group_concat(f.file_path,char(10)),'')
+            FROM commit_jira j JOIN history_commits h ON h.repository_id=j.repository_id AND h.commit_sha=j.commit_sha
+            JOIN repositories r ON r.id=h.repository_id
+            LEFT JOIN commit_files f ON f.repository_id=h.repository_id AND f.commit_sha=h.commit_sha
+            WHERE j.jira_key=? GROUP BY r.name,h.commit_sha,h.committed_at,h.subject
+            ORDER BY h.committed_at DESC LIMIT ?""")){
+            ps.setString(1,key.toUpperCase(Locale.ROOT));ps.setInt(2,limit);
+            try(ResultSet rs=ps.executeQuery()){while(rs.next())rows.add(
+                "%s | %s | %s%n%s%nFiles:%n%s".formatted(rs.getString(1),rs.getString(2),rs.getString(3),
+                 rs.getString(4),rs.getString(5))));
+            }
+        }
+        return rows;
     }
 
     private int countParameters(String sql){return (int)sql.chars().filter(c->c=='?').count();}

@@ -16,8 +16,9 @@ It builds a focused knowledge index, then requires the agent to inspect current 
 - Search using SQLite FTS5
 - Import normalized Jira work items with source URL/update provenance
 - Generate a Jira-driven blast-radius evidence report
+- Index complete Git history as lightweight Jira→commit→changed-file relationships
 
-Direct Jira API synchronization and architecture-decision management are planned next. The current import contract is intentionally connector-neutral.
+Full historical Jira bodies are intentionally not preloaded. Git history stores lightweight Jira links, and older Jira details can be hydrated on demand. Direct Jira API synchronization and architecture-decision management are planned next. The current import contract is intentionally connector-neutral.
 
 ## Quick start
 
@@ -32,6 +33,8 @@ java -jar target/agent-framework-0.1.0-SNAPSHOT.jar search --db .agent/context.d
 java -jar target/agent-framework-0.1.0-SNAPSHOT.jar blast-radius --db .agent/context.db "deployment"
 java -jar target/agent-framework-0.1.0-SNAPSHOT.jar jira-import --db .agent/context.db --file examples/jira-work-item.json
 java -jar target/agent-framework-0.1.0-SNAPSHOT.jar jira-blast-radius --db .agent/context.db FHB-1234
+java -jar target/agent-framework-0.1.0-SNAPSHOT.jar history-index --db .agent/context.db --config config/repositories.json
+java -jar target/agent-framework-0.1.0-SNAPSHOT.jar jira-history --db .agent/context.db FHB-1234
 ```
 
 Authentication and cloning stay outside the indexer, preventing credentials from entering the knowledge database.

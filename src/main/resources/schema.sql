@@ -29,3 +29,20 @@ CREATE TABLE IF NOT EXISTS jira_sources (
  jira_key TEXT PRIMARY KEY REFERENCES jira_work(jira_key) ON DELETE CASCADE,
  source_url TEXT NOT NULL, source_updated_at TEXT, imported_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS history_commits (
+ repository_id INTEGER NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+ commit_sha TEXT NOT NULL, committed_at TEXT NOT NULL, subject TEXT NOT NULL,
+ PRIMARY KEY(repository_id,commit_sha)
+);
+CREATE TABLE IF NOT EXISTS commit_files (
+ repository_id INTEGER NOT NULL, commit_sha TEXT NOT NULL, file_path TEXT NOT NULL,
+ PRIMARY KEY(repository_id,commit_sha,file_path),
+ FOREIGN KEY(repository_id,commit_sha) REFERENCES history_commits(repository_id,commit_sha) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS commit_jira (
+ repository_id INTEGER NOT NULL, commit_sha TEXT NOT NULL, jira_key TEXT NOT NULL,
+ PRIMARY KEY(repository_id,commit_sha,jira_key),
+ FOREIGN KEY(repository_id,commit_sha) REFERENCES history_commits(repository_id,commit_sha) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_commit_jira_key ON commit_jira(jira_key);
