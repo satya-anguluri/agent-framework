@@ -3,6 +3,8 @@ package io.capstead.agentframework;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.*;
+import io.capstead.agentframework.model.GitChange;
 
 final class GitSupport {
     private GitSupport() {}
@@ -11,6 +13,26 @@ final class GitSupport {
         String output = run(root, "rev-parse", "HEAD");
         if (!output.matches("[0-9a-fA-F]{40}")) throw new IOException("Invalid git HEAD for " + root);
         return output;
+    }
+
+    static String resolveCommit(Path root,String ref)throws IOException,InterruptedException{
+        String output=run(root,"rev-parse","--verify",ref+"^{commit}");
+        if(!output.matches("[0-9a-fA-F]{40}"))throw new IOException("Invalid git revision "+ref+" for "+root);
+        return output;
+    }
+
+    static List<GitChange> changedFiles(String repository,Path root,String base,String head)throws IOException,InterruptedException{
+        String baseCommit=resolveCommit(root,base),headCommit=resolveCommit(root,head);
+        String output=run(root,"diff","--name-status",baseCommit+".."+headCommit,"--");
+        if(output.isBlank())return List.of();
+        List<GitChange> changes=new ArrayList<>();
+        for(String line:output.split("\\R")){
+            String[] fields=line.split("\\t");
+            if(fields.length<2)throw new IOException("Unexpected git diff row for "+root+": "+line);
+            String status=fields[0],path=fields[fields.length-1];
+            changes.add(new GitChange(repository,status,path,baseCommit,headCommit));
+        }
+        return List.copyOf(changes);
     }
 
     static void requireClean(Path root) throws IOException, InterruptedException {
