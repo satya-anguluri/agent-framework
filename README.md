@@ -329,6 +329,6 @@ java -jar "$AF_JAR" review-work-item \
   PROJECT-1234
 ```
 
-The artifact includes the work-item provenance, status counts, committed-change table, satisfied checks, missing evidence, unverifiable requirements, approval gates, and validation limitations. Markdown fields are escaped before rendering.
+The artifact includes the work-item provenance, per-repository baseline/head comparison table (including repositories with no changed files), status counts, committed-change table, satisfied checks, missing evidence, unverifiable requirements, approval gates, and validation limitations. Validation requires clean worktrees so uncommitted changes cannot be silently omitted. Markdown fields are escaped before rendering.
 
 The framework only writes the requested local artifact. It does not connect to a pull-request provider, post comments, approve, merge, deploy, or modify source code.
