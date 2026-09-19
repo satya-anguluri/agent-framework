@@ -15,6 +15,11 @@ final class PullRequestReviewRenderer {
   out.append("## Check summary\n\n| Status | Count |\n|---|---:|\n");
   for(ValidationStatus status:ValidationStatus.values())
    out.append("| ").append(status).append(" | ").append(artifact.statusCounts().get(status)).append(" |\n");
+  out.append("\n## Repository comparisons\n\n");
+  out.append("| Repository | Baseline | Head |\n|---|---|---|\n");
+  for(RepositoryComparison comparison:artifact.repositoryComparisons())
+   out.append("| ").append(cell(comparison.repository())).append(" | ").append(cell(comparison.baseCommit()))
+    .append(" | ").append(cell(comparison.headCommit())).append(" |\n");
   out.append("\n## Observed committed changes\n\n");
   if(artifact.observedChanges().isEmpty())out.append("No committed changes were observed.\n");
   else{
@@ -40,7 +45,7 @@ final class PullRequestReviewRenderer {
    check.evidence().forEach(e->out.append("  - Evidence: ").append(text(e)).append("\n"));
   }
  }
- private static String cell(String value){return text(value).replace("|","\\|");}
+ private static String cell(String value){return text(value).replace("\\","\\\\").replace("|","\\|");}
  private static String text(String value){
   return Objects.toString(value,"").replace("\r"," ").replace("\n"," ").replace("<","&lt;").replace(">","&gt;");
  }
