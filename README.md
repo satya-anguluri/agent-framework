@@ -203,8 +203,9 @@ Use absolute Windows paths in the JSON configuration. Backslashes must be escape
 Generate the configuration with PowerShell to avoid JSON errors such as `Unrecognized character escape 'U'`:
 
 ```powershell
-$RepositoryPath = (Resolve-Path (Join-Path $env:USERPROFILE "Downloads\event-driven-marketplace-platform")).Path
-@{ repositories = @(@{ name = "event-driven-marketplace-platform"; localPath = $RepositoryPath; defaultBranch = "main" }) } | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 $AfConfig
+$RepositorySource = (Resolve-Path (Read-Host "Enter the full path to the repository you want to index")).Path
+$RepositoryName = Read-Host "Enter a stable name for this repository"
+@{ repositories = @(@{ name = $RepositoryName; localPath = $RepositorySource; defaultBranch = "main" }) } | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 $AfConfig
 ```
 
 #### Index an active repository safely
@@ -212,12 +213,13 @@ $RepositoryPath = (Resolve-Path (Join-Path $env:USERPROFILE "Downloads\event-dri
 Indexing intentionally refuses a dirty worktree. If the repository has tracked or untracked changes, do not commit or stash them merely to run the framework. Create a separate clean Git worktree at the exact commit you want to index:
 
 ```powershell
-$RepositorySource = Join-Path $env:USERPROFILE "Downloads\event-driven-marketplace-platform"
-$RepositoryIndex = Join-Path $env:USERPROFILE "agent-framework-worktrees\marketplace-index"
+$RepositorySource = (Resolve-Path (Read-Host "Enter the full path to the active repository")).Path
+$RepositoryName = Read-Host "Enter a stable name for this repository"
+$RepositoryIndex = Join-Path $env:USERPROFILE ("agent-framework-worktrees\" + $RepositoryName + "-index")
 New-Item -ItemType Directory -Force (Split-Path $RepositoryIndex) | Out-Null
 git -C $RepositorySource worktree add --detach $RepositoryIndex HEAD
 git -C $RepositoryIndex status --short
-@{ repositories = @(@{ name = "event-driven-marketplace-platform"; localPath = $RepositoryIndex; defaultBranch = "main" }) } | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 $AfConfig
+@{ repositories = @(@{ name = $RepositoryName; localPath = $RepositoryIndex; defaultBranch = "main" }) } | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 $AfConfig
 java -jar $AfJar index --db $AfDb --config $AfConfig
 ```
 
