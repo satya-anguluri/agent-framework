@@ -19,9 +19,9 @@ final class WorkItemAnalysisService {
             List<AnalysisEvidence> rows=grouped.get(category);
             if(rows!=null&&!rows.isEmpty())immutable.put(category,List.copyOf(rows));
         }
-        List<String> dependencies=store.workItemDependencies(key,limit);
-        List<String> history=store.relatedWorkItems(key,limit);
-        return new UnifiedAnalysisReport(item,Collections.unmodifiableMap(immutable),dependencies,history,
+        List<String> dependencies=List.copyOf(store.workItemDependencies(key,limit));
+        List<String> jiraHistory=List.copyOf(store.relatedWorkItems(key,limit));
+        return new UnifiedAnalysisReport(item,Collections.unmodifiableMap(immutable),dependencies,jiraHistory,
           verification(immutable,dependencies),rollout(immutable,dependencies));
     }
 
