@@ -22,22 +22,120 @@ It builds a focused knowledge index, then requires the agent to inspect current 
 
 Full historical Jira bodies are intentionally not preloaded. Git history stores lightweight Jira links, and older Jira details can be hydrated on demand. Direct Jira API synchronization and architecture-decision management are planned next. The current import contract is intentionally connector-neutral.
 
-## Quick start
+
+## Bash quick start
+
+Run these commands from the `agent-framework` repository root.
+
+### 1. Build and verify
 
 ```bash
-cp config/repositories.example.json config/repositories.json
-# Point localPath at clean local checkouts.
-mvn verify
-mvn package
-java -jar target/agent-framework-0.1.0-SNAPSHOT.jar init --db .agent/context.db
-java -jar target/agent-framework-0.1.0-SNAPSHOT.jar index --db .agent/context.db --config config/repositories.json
-java -jar target/agent-framework-0.1.0-SNAPSHOT.jar search --db .agent/context.db "rollback deployment status"
-java -jar target/agent-framework-0.1.0-SNAPSHOT.jar blast-radius --db .agent/context.db "deployment"
-java -jar target/agent-framework-0.1.0-SNAPSHOT.jar jira-import --db .agent/context.db --file examples/jira-work-item.json
-java -jar target/agent-framework-0.1.0-SNAPSHOT.jar jira-blast-radius --db .agent/context.db FHB-1234
-java -jar target/agent-framework-0.1.0-SNAPSHOT.jar history-index --db .agent/context.db --config config/repositories.json
-java -jar target/agent-framework-0.1.0-SNAPSHOT.jar jira-history --db .agent/context.db FHB-1234
-java -jar target/agent-framework-0.1.0-SNAPSHOT.jar related-jiras --db .agent/context.db "mapper validation status"
+mvn --batch-mode clean verify
+
+AF_JAR="target/agent-framework-0.1.0-SNAPSHOT.jar"
+AF_DB=".agent/context.db"
+AF_CONFIG="config/repositories.json"
+```
+
+### 2. Configure the four repositories
+
+```bash
+cp config/repositories.example.json "$AF_CONFIG"
+
+# Edit localPath for mapper, applier, deployer, and deployment-manager.
+${EDITOR:-vi} "$AF_CONFIG"
+```
+
+Each configured repository must be a clean local Git checkout. The framework rejects modified or untracked files during repository indexing so the stored commit provenance remains accurate.
+
+### 3. Initialize and index current code
+
+```bash
+java -jar "$AF_JAR" init \
+  --db "$AF_DB"
+
+java -jar "$AF_JAR" index \
+  --db "$AF_DB" \
+  --config "$AF_CONFIG"
+```
+
+Re-run `index` whenever one of the repositories advances to a new commit. Search and blast-radius commands refuse to use stale repository evidence.
+
+### 4. Index Jira-linked Git history
+
+Run this after current-code indexing because history records are linked to the indexed repositories and source files.
+
+```bash
+java -jar "$AF_JAR" history-index \
+  --db "$AF_DB" \
+  --config "$AF_CONFIG"
+```
+
+### 5. Search current repository knowledge
+
+```bash
+java -jar "$AF_JAR" search \
+  --db "$AF_DB" \
+  "rollback deployment status"
+
+java -jar "$AF_JAR" blast-radius \
+  --db "$AF_DB" \
+  "deployment"
+```
+
+### 6. Inspect historical Jira relationships
+
+```bash
+java -jar "$AF_JAR" jira-history \
+  --db "$AF_DB" \
+  FHB-1234
+
+java -jar "$AF_JAR" related-jiras \
+  --db "$AF_DB" \
+  "mapper validation status"
+```
+
+`jira-history` starts with a known Jira key. `related-jiras` starts with a new requirement or code concept and follows current code → source file → historical commit → Jira key.
+
+### 7. Import a current Jira work item
+
+Copy and edit the connector-neutral example:
+
+```bash
+cp examples/jira-work-item.json /tmp/FHB-1234.json
+${EDITOR:-vi} /tmp/FHB-1234.json
+
+java -jar "$AF_JAR" jira-import \
+  --db "$AF_DB" \
+  --file /tmp/FHB-1234.json
+
+java -jar "$AF_JAR" jira-show \
+  --db "$AF_DB" \
+  FHB-1234
+```
+
+### 8. Generate the Jira-driven blast radius
+
+```bash
+java -jar "$AF_JAR" jira-blast-radius \
+  --db "$AF_DB" \
+  FHB-1234
+```
+
+The report separates observed repository evidence from possible impact. The agent must still inspect current source, tests, API/message contracts, database compatibility, and rollout order before implementation.
+
+## Refresh after repository changes
+
+```bash
+mvn --batch-mode verify
+
+java -jar "$AF_JAR" index \
+  --db "$AF_DB" \
+  --config "$AF_CONFIG"
+
+java -jar "$AF_JAR" history-index \
+  --db "$AF_DB" \
+  --config "$AF_CONFIG"
 ```
 
 Authentication and cloning stay outside the indexer, preventing credentials from entering the knowledge database.
