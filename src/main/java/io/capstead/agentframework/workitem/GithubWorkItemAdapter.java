@@ -13,10 +13,12 @@ final class GithubWorkItemAdapter implements WorkItemAdapter {
           text(p,"body"),null,text(p,"state"),sourceUri.toString(),text(p,"updated_at")));
     }
     private static String repository(URI uri){
-        String[] parts=uri.getPath().split("/");
-        for(int i=0;i+2<parts.length;i++)if(parts[i].equals("repos"))return clean(parts[i+1])+"."+clean(parts[i+2]);
-        if(parts.length>=3)return clean(parts[parts.length-2])+"."+clean(parts[parts.length-1]);
-        throw new IllegalArgumentException("GitHub source URI must identify an owner and repository");
+        String[] parts=java.util.Arrays.stream(uri.getPath().split("/")).filter(p->!p.isBlank()).toArray(String[]::new);
+        if(parts.length>=5&&parts[0].equals("repos")&&parts[3].equals("issues"))
+            return clean(parts[1])+"."+clean(parts[2]);
+        if(parts.length>=4&&parts[2].equals("issues"))
+            return clean(parts[0])+"."+clean(parts[1]);
+        throw new IllegalArgumentException("Unsupported GitHub issue URL: "+uri);
     }
     private static String clean(String value){return value.replaceAll("[^A-Za-z0-9._:-]","-");}
     private static String required(JsonNode p,String field){String v=text(p,field);if(v==null||v.isBlank())throw new IllegalArgumentException("Missing GitHub field: "+field);return v;}
