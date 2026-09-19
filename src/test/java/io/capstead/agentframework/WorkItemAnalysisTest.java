@@ -50,6 +50,11 @@ class WorkItemAnalysisTest{
    assertTrue(markdown.contains("## Observed evidence"));
    assertTrue(markdown.contains("## Approval gates"));
    assertTrue(markdown.contains("not a diagnosis"));
+   assertTrue(markdown.contains("Evidence: order event delivery"));
+   assertTrue(plan.proposedDependencyOrder().stream().anyMatch(v->v.contains("Source:")));
+   Path exported=root.resolve("plans").resolve("PROJECT-9.md");
+   AgentFramework.writeOutput(exported,markdown);
+   assertEquals(markdown,java.nio.file.Files.readString(exported));
   }
  }
  @Test void acceptsTrackerNeutralKeys(){
