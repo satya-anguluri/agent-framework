@@ -19,7 +19,8 @@ import java.util.*;
  AgentFramework.BlastRadius.class,AgentFramework.JiraImport.class,AgentFramework.JiraShow.class,
  AgentFramework.JiraBlastRadius.class,AgentFramework.HistoryIndex.class,AgentFramework.JiraHistory.class,
  AgentFramework.RelatedJiras.class,AgentFramework.Dependencies.class,
- AgentFramework.WorkItemImport.class,AgentFramework.WorkItemShow.class,AgentFramework.AnalyzeWorkItem.class})
+ AgentFramework.WorkItemImport.class,AgentFramework.WorkItemShow.class,AgentFramework.AnalyzeWorkItem.class,
+ AgentFramework.PlanWorkItem.class})
 public class AgentFramework implements Runnable{
  public static void main(String[]args){System.exit(new CommandLine(new AgentFramework()).execute(args));}
  public void run(){CommandLine.usage(this,System.out);}
@@ -165,6 +166,34 @@ public class AgentFramework implements Runnable{
    }return 0;
   }
  }
+ @Command(name="plan-work-item",description="Export a reviewable implementation plan from current evidence")
+ static class PlanWorkItem extends DbCommand implements Callable<Integer>{
+  @Parameters(index="0",description="Work-item key")String key;
+  @Option(names="--limit",defaultValue="50")int limit;
+  @Option(names="--format",defaultValue="markdown",description="Output format: markdown or json")String format;
+  @Option(names="--output",description="Optional output file; stdout when omitted")Path output;
+  public Integer call()throws Exception{
+   if(limit<1){System.err.println("--limit must be positive");return 2;}
+   if(!format.equals("markdown")&&!format.equals("json")){System.err.println("--format must be markdown or json");return 2;}
+   try(var store=new SqliteKnowledgeStore(db)){
+    store.initialize();if(!verifyCurrent(store))return 2;
+    try{
+     var report=new WorkItemAnalysisService(store).analyze(key,limit);
+     var plan=new ImplementationPlanService().build(report);
+     String rendered=format.equals("json")
+       ?new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(plan)
+       :ImplementationPlanRenderer.markdown(plan);
+     if(output==null)System.out.print(rendered);
+     else{
+      Path parent=output.toAbsolutePath().getParent();if(parent!=null)Files.createDirectories(parent);
+      Files.writeString(output,rendered,StandardOpenOption.CREATE,StandardOpenOption.TRUNCATE_EXISTING);
+      System.out.println("Wrote implementation plan to "+output.toAbsolutePath());
+     }
+    }catch(IllegalArgumentException e){System.err.println(e.getMessage());return 2;}
+   }return 0;
+  }
+ }
+
  private static void printUnifiedReport(io.capstead.agentframework.model.UnifiedAnalysisReport report)throws Exception{
   System.out.println("WORK ITEM");
   System.out.println(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(report.workItem()));
