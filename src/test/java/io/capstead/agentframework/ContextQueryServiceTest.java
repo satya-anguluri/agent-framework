@@ -24,9 +24,9 @@ class ContextQueryServiceTest {
     new KnowledgeItem("message-consumer","orders.preordered","preorder inventory reservation",
       "services/inventory/PreOrderListener.java",18,28,sha)));
    var service=new ContextQueryService(store);
-   var bundle=service.explain("How does the pre order work currently?",2);
+   var bundle=service.explain("How does the pre order work currently?",3);
    assertEquals(List.of("pre","order","preorder"),bundle.queryTerms());
-   assertEquals(2,bundle.observedEvidence().size());
+   assertEquals(3,bundle.observedEvidence().size());
    assertTrue(bundle.observedEvidence().stream().allMatch(e->e.commitSha().equals(sha)));
    assertTrue(bundle.observedEvidence().stream().anyMatch(e->e.name().contains("PreOrder")));
    assertThrows(IllegalArgumentException.class,()->service.explain(" ",2));
