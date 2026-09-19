@@ -25,7 +25,7 @@ jobs:
         shell: bash
         run: |
           version="${GITHUB_REF_NAME#v}"
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
           mvn --batch-mode versions:set -DnewVersion="$version" -DgenerateBackupPoms=false
       - name: Verify and package
         run: mvn --batch-mode clean verify
@@ -42,7 +42,10 @@ jobs:
         shell: bash
         run: |
           version="${GITHUB_REF_NAME#v}"
-          sha256sum "target/agent-framework-$version.jar" > "target/agent-framework-$version.jar.sha256"
+          (
+            cd target
+            sha256sum "agent-framework-$version.jar" > "agent-framework-$version.jar.sha256"
+          )
       - name: Publish GitHub release
         shell: bash
         run: |
