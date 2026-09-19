@@ -177,7 +177,7 @@ public class AgentFramework implements Runnable{
     row.lineStart()==null?"-":row.lineStart(),row.commitSha(),row.detail()));
   });
   printRows("RESOLVED DEPENDENCY EDGES",report.resolvedDependencies());
-  printRows("RELATED HISTORICAL WORK ITEMS",report.relatedHistoricalWorkItems());
+  printRows("RELATED HISTORICAL JIRA CONTEXT",report.relatedHistoricalJiraContext());
   printRows("REQUIRED VERIFICATION (NOT DIAGNOSIS)",report.requiredVerification());
   printRows("ROLLOUT AND ROLLBACK CHECKS",report.rolloutAndRollbackChecks());
  }
