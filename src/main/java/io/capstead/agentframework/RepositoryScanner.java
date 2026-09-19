@@ -13,9 +13,6 @@ final class RepositoryScanner {
     RepositoryScanner() {
         List<SourceArtifactExtractor> loaded=new ArrayList<>();
         ServiceLoader.load(SourceArtifactExtractor.class).forEach(loaded::add);
-        if(loaded.stream().noneMatch(e->e instanceof JavaSpringDependencyExtractor)) loaded.add(new JavaSpringDependencyExtractor());
-        if(loaded.stream().noneMatch(e->e instanceof HelmConfigurationExtractor)) loaded.add(new HelmConfigurationExtractor());
-        if(loaded.stream().noneMatch(e->e instanceof CiCdVaultExtractor)) loaded.add(new CiCdVaultExtractor());
         extractors=List.copyOf(loaded);
     }
     private static final Set<String> SKIP = Set.of(".git", "target", "build", ".idea", ".gradle", "node_modules");
