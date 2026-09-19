@@ -16,6 +16,7 @@ final class ImplementationPlanRenderer {
     out.append("- ").append(row.repository()).append("/").append(row.sourcePath());
     if(row.lineStart()!=null)out.append(":").append(row.lineStart());
     out.append(" @ ").append(row.commitSha()).append(" — ").append(row.kind()).append(" ").append(row.name()).append("\n");
+    out.append("  - Evidence: ").append(java.util.Objects.toString(row.detail(),"").replace("\n"," ")).append("\n");
    }
   });
   out.append("\n## Proposed repository investigations\n");
