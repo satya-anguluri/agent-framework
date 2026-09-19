@@ -62,3 +62,15 @@ CREATE TABLE IF NOT EXISTS commit_file_lineage (
  FOREIGN KEY(repository_id,commit_sha) REFERENCES history_commits(repository_id,commit_sha) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_file_lineage_current ON commit_file_lineage(repository_id,current_path);
+
+CREATE TABLE IF NOT EXISTS dependency_edges (
+ id INTEGER PRIMARY KEY,
+ source_repository_id INTEGER NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+ source_knowledge_id INTEGER NOT NULL REFERENCES knowledge(id) ON DELETE CASCADE,
+ target_repository_id INTEGER REFERENCES repositories(id) ON DELETE CASCADE,
+ target_knowledge_id INTEGER REFERENCES knowledge(id) ON DELETE CASCADE,
+ dependency_type TEXT NOT NULL, artifact_name TEXT NOT NULL, evidence TEXT NOT NULL,
+ UNIQUE(source_knowledge_id,target_repository_id,target_knowledge_id,dependency_type,artifact_name)
+);
+CREATE INDEX IF NOT EXISTS idx_dependency_source ON dependency_edges(source_repository_id);
+CREATE INDEX IF NOT EXISTS idx_dependency_target ON dependency_edges(target_repository_id);

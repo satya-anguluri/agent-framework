@@ -27,8 +27,10 @@ class RepositoryScannerTest{
   assertEquals(1,items.stream().filter(i->i.kind().equals("db-table")&&i.name().equals("deployment_history")).count());
   assertTrue(items.stream().allMatch(i->i.commitSha().length()==40));
  }
- @Test void excludesConfigurationFilesThatMayContainSecrets()throws Exception{
-  Files.writeString(root.resolve("application.yml"),"password: should-not-be-indexed");
-  assertTrue(new RepositoryScanner().scan(root,"0123456789012345678901234567890123456789").isEmpty());
+ @Test void indexesConfigurationKeysButRedactsValues()throws Exception{
+  Files.writeString(root.resolve("application.yml"),"database:\n  password: should-not-be-indexed");
+  var items=new RepositoryScanner().scan(root,"0123456789012345678901234567890123456789");
+  assertTrue(items.stream().anyMatch(i->i.name().equals("database.password")));
+  assertFalse(items.toString().contains("should-not-be-indexed"));
  }
 }

@@ -1,8 +1,4 @@
-{
-  "repositories": [
-    {"name":"mapper","localPath":"../mapper","defaultBranch":"main"},
-    {"name":"applier","localPath":"../applier","defaultBranch":"main"},
-    {"name":"deployer","localPath":"../deployer","defaultBranch":"main"},
-    {"name":"deployment-manager","localPath":"../deployment-manager","defaultBranch":"main"}
-  ]
-}
+{"repositories":[
+  {"name":"service-a","localPath":"../service-a","defaultBranch":"main"},
+  {"name":"service-b","localPath":"../service-b","defaultBranch":"main"}
+]}

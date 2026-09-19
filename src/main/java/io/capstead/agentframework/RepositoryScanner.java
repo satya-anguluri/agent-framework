@@ -1,6 +1,7 @@
 package io.capstead.agentframework;
 
 import io.capstead.agentframework.model.KnowledgeItem;
+import io.capstead.agentframework.extract.*;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.*;
@@ -8,6 +9,12 @@ import java.util.*;
 import java.util.regex.*;
 
 final class RepositoryScanner {
+    private final List<SourceArtifactExtractor> extractors;
+    RepositoryScanner() {
+        List<SourceArtifactExtractor> loaded=new ArrayList<>();
+        ServiceLoader.load(SourceArtifactExtractor.class).forEach(loaded::add);
+        extractors=List.copyOf(loaded);
+    }
     private static final Set<String> SKIP = Set.of(".git", "target", "build", ".idea", ".gradle", "node_modules");
     private static final Pattern JAVA_TYPE = Pattern.compile("\\b(class|interface|record|enum)\\s+([A-Za-z_$][\\w$]*)");
     private static final Pattern TABLE = Pattern.compile("@Table\\s*\\(\\s*name\\s*=\\s*\"([^\"]+)\"");
@@ -27,9 +34,10 @@ final class RepositoryScanner {
     private boolean allowed(Path relative) {
         for (Path part : relative) if (SKIP.contains(part.toString())) return false;
         String name = relative.getFileName().toString().toLowerCase(Locale.ROOT);
-        if (name.startsWith(".") || name.contains("secret") || name.contains("credential") ||
-                name.endsWith(".yaml") || name.endsWith(".yml") || name.endsWith(".properties")) return false;
-        return name.endsWith(".java") || name.endsWith(".sql") || name.endsWith(".md") || name.equals("pom.xml");
+        if (name.startsWith(".") && !name.equals(".gitlab-ci.yml") && !name.equals(".gitlab-ci.yaml")) return false;
+        if (name.contains("secret") || name.contains("credential")) return false;
+        return name.endsWith(".java") || name.endsWith(".sql") || name.endsWith(".md") || name.equals("pom.xml")
+                || extractors.stream().anyMatch(extractor -> extractor.supports(relative));
     }
 
     private void extract(Path root, Path path, String commit, Map<String, KnowledgeItem> out) throws IOException {
@@ -38,6 +46,12 @@ final class RepositoryScanner {
         String rel = root.relativize(path).toString().replace('\\', '/');
         String scannable = rel.endsWith(".java") ? stripComments(original) :
                 rel.endsWith(".sql") ? stripSqlComments(original) : original;
+        Path relative=root.relativize(path);
+        for(SourceArtifactExtractor extractor:extractors) {
+            if(extractor.supports(relative)) {
+                for(KnowledgeItem item:extractor.extract(relative,scannable,original,commit)) put(item,out);
+            }
+        }
         if (rel.endsWith(".java")) {
             matches(JAVA_TYPE, scannable, original, rel, commit, "java-type", 2, out);
             matches(TABLE, scannable, original, rel, commit, "db-table", 1, out);
@@ -50,7 +64,7 @@ final class RepositoryScanner {
             }
         } else if (rel.endsWith(".sql")) {
             matches(SQL_TABLE, scannable, original, rel, commit, "db-table", 1, out);
-        } else {
+        } else if (rel.endsWith(".md") || path.getFileName().toString().equals("pom.xml")) {
             String title = original.lines().filter(s -> !s.isBlank()).findFirst().orElse(rel);
             put(new KnowledgeItem("document", title.substring(0, Math.min(title.length(),160)),
                     original.substring(0,Math.min(original.length(),20_000)),rel,1,null,commit),out);

@@ -1,6 +1,6 @@
 # Agent Framework
 
-A provenance-first engineering context system for Jira-driven changes spanning **Mapper, Applier, Deployer, Deployment Manager**, and their shared database.
+A provenance-first engineering context and dependency framework for changes spanning any number of repositories.
 
 It builds a focused knowledge index, then requires the agent to inspect current source before changing anything. The index is a locator, never a replacement for live code.
 
@@ -20,6 +20,9 @@ It builds a focused knowledge index, then requires the agent to inspect current 
 - Link historical changed files to current classes, endpoints, tables, and documents
 - Follow Git rename chains so older paths resolve to current source locations
 - Retrieve historical Jira context from a new requirement or code concept
+- Extend languages and frameworks through a ServiceLoader extractor SPI
+- Resolve deterministic HTTP-service and messaging dependencies
+- Understand Helm, application configuration, Vault references, Jenkinsfiles, and common CI/CD pipelines
 
 Full historical Jira bodies are intentionally not preloaded. Git history stores lightweight Jira links, and older Jira details can be hydrated on demand. Direct Jira API synchronization and architecture-decision management are planned next. The current import contract is intentionally connector-neutral.
 
@@ -38,12 +41,12 @@ AF_DB=".agent/context.db"
 AF_CONFIG="config/repositories.json"
 ```
 
-### 2. Configure the four repositories
+### 2. Configure project repositories
 
 ```bash
 cp config/repositories.example.json "$AF_CONFIG"
 
-# Edit localPath for mapper, applier, deployer, and deployment-manager.
+# Add any number of repositories and edit each localPath.
 ${EDITOR:-vi} "$AF_CONFIG"
 ```
 
@@ -72,7 +75,16 @@ java -jar "$AF_JAR" history-index \
   --config "$AF_CONFIG"
 ```
 
-### 5. Search current repository knowledge
+### 5. Inspect cross-repository dependencies
+
+```bash
+java -jar "$AF_JAR" dependencies \
+  --db "$AF_DB"
+```
+
+Only deterministic matches become edges; unresolved observations are retained as evidence.
+
+### 6. Search current repository knowledge
 
 ```bash
 java -jar "$AF_JAR" search \
@@ -84,7 +96,7 @@ java -jar "$AF_JAR" blast-radius \
   "deployment"
 ```
 
-### 6. Inspect historical Jira relationships
+### 7. Inspect historical Jira relationships
 
 ```bash
 java -jar "$AF_JAR" jira-history \
@@ -98,7 +110,7 @@ java -jar "$AF_JAR" related-jiras \
 
 `jira-history` starts with a known Jira key. `related-jiras` starts with a new requirement or code concept and follows current code → source file → historical commit → Jira key.
 
-### 7. Import a current Jira work item
+### 8. Import a current Jira work item
 
 Copy and edit the connector-neutral example:
 
@@ -115,7 +127,7 @@ java -jar "$AF_JAR" jira-show \
   FHB-1234
 ```
 
-### 8. Generate the Jira-driven blast radius
+### 9. Generate the Jira-driven blast radius
 
 ```bash
 java -jar "$AF_JAR" jira-blast-radius \
@@ -142,3 +154,10 @@ java -jar "$AF_JAR" history-index \
 Authentication and cloning stay outside the indexer, preventing credentials from entering the knowledge database.
 
 See [docs/architecture.md](docs/architecture.md) and [AGENTS.md](AGENTS.md).
+
+
+## Deployment and delivery metadata
+
+Built-in structural extractors understand Helm charts, Kubernetes templates, Spring application configuration, Vault HCL/policy references, Jenkinsfiles, GitHub Actions, Azure Pipelines, and GitLab CI. They retain identifiers such as configuration keys, Helm value references, resource kinds, Vault paths, pipeline stages, downstream jobs, actions, tasks, and templates.
+
+They deliberately do not retain configuration values, placeholder defaults, shell command bodies, tokens, passwords, or credential contents.
