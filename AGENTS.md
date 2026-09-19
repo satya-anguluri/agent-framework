@@ -7,7 +7,7 @@ Build a reusable cross-repository context layer for any software project. Reposi
 1. Live repositories are authoritative; the index is only an evidence locator.
 2. Every claim carries repository, path, and revision provenance.
 3. Refuse stale evidence and dirty-worktree indexing.
-4. Never index secrets, generated output, credentials, or runtime configuration values.
+4. Never index secrets, generated output, credentials, runtime configuration values, pipeline shell bodies, or tokens. Deployment extractors may retain structural identifiers and references only.
 5. Evidence is not diagnosis; observed facts stay separate from inferred impact.
 6. No automatic production deployment.
 

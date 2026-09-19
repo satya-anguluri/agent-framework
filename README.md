@@ -22,6 +22,7 @@ It builds a focused knowledge index, then requires the agent to inspect current 
 - Retrieve historical Jira context from a new requirement or code concept
 - Extend languages and frameworks through a ServiceLoader extractor SPI
 - Resolve deterministic HTTP-service and messaging dependencies
+- Understand Helm, application configuration, Vault references, Jenkinsfiles, and common CI/CD pipelines
 
 Full historical Jira bodies are intentionally not preloaded. Git history stores lightweight Jira links, and older Jira details can be hydrated on demand. Direct Jira API synchronization and architecture-decision management are planned next. The current import contract is intentionally connector-neutral.
 
@@ -153,3 +154,10 @@ java -jar "$AF_JAR" history-index \
 Authentication and cloning stay outside the indexer, preventing credentials from entering the knowledge database.
 
 See [docs/architecture.md](docs/architecture.md) and [AGENTS.md](AGENTS.md).
+
+
+## Deployment and delivery metadata
+
+Built-in structural extractors understand Helm charts, Kubernetes templates, Spring application configuration, Vault HCL/policy references, Jenkinsfiles, GitHub Actions, Azure Pipelines, and GitLab CI. They retain identifiers such as configuration keys, Helm value references, resource kinds, Vault paths, pipeline stages, downstream jobs, actions, tasks, and templates.
+
+They deliberately do not retain configuration values, placeholder defaults, shell command bodies, tokens, passwords, or credential contents.

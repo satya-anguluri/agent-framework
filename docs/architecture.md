@@ -8,6 +8,6 @@ Agent Framework is a project-neutral context and dependency engine.
 - **Work-item adapters:** normalized work items; Jira is the first adapter.
 - **Agent adapters:** any coding agent consumes the evidence contract.
 
-The built-in Java/Spring adapter recognizes common HTTP, Feign, Kafka, SQS, Azure Service Bus, JPA, and SQL patterns. Other ecosystems can be added without changing core orchestration.
+The built-in adapters recognize Java/Spring dependencies plus Helm, Kubernetes, Vault, Jenkins, GitHub Actions, Azure Pipelines, and GitLab CI structure. Configuration values, secrets, tokens, and shell bodies are excluded. Other ecosystems can be added without changing core orchestration.
 
 Only deterministic edges are resolved automatically. Unresolved observations remain evidence and are never presented as diagnosis.

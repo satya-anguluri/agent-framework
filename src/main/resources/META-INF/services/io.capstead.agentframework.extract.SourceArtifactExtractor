@@ -1,1 +1,3 @@
 io.capstead.agentframework.extract.JavaSpringDependencyExtractor
+io.capstead.agentframework.extract.HelmConfigurationExtractor
+io.capstead.agentframework.extract.CiCdVaultExtractor
