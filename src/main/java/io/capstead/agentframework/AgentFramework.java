@@ -20,7 +20,7 @@ import java.util.*;
  AgentFramework.JiraBlastRadius.class,AgentFramework.HistoryIndex.class,AgentFramework.JiraHistory.class,
  AgentFramework.RelatedJiras.class,AgentFramework.Dependencies.class,
  AgentFramework.WorkItemImport.class,AgentFramework.WorkItemShow.class,AgentFramework.AnalyzeWorkItem.class,
- AgentFramework.PlanWorkItem.class})
+ AgentFramework.PlanWorkItem.class,AgentFramework.ValidateWorkItem.class})
 public class AgentFramework implements Runnable{
  public static void main(String[]args){System.exit(new CommandLine(new AgentFramework()).execute(args));}
  public void run(){CommandLine.usage(this,System.out);}
@@ -191,6 +191,46 @@ public class AgentFramework implements Runnable{
     }catch(IllegalArgumentException e){System.err.println(e.getMessage());return 2;}
    }return 0;
   }
+ }
+
+ @Command(name="validate-work-item",description="Validate committed implementation evidence against a work-item plan")
+ static class ValidateWorkItem extends DbCommand implements Callable<Integer>{
+  @Parameters(index="0",description="Work-item key")String key;
+  @Option(names="--head",defaultValue="HEAD",description="Git head revision in each indexed repository")String head;
+  @Option(names="--limit",defaultValue="50")int limit;
+  @Option(names="--format",defaultValue="text",description="Output format: text or json")String format;
+  public Integer call()throws Exception{
+   if(limit<1){System.err.println("--limit must be positive");return 2;}
+   if(!format.equals("text")&&!format.equals("json")){System.err.println("--format must be text or json");return 2;}
+   try(var store=new SqliteKnowledgeStore(db)){
+    store.initialize();
+    try{
+     var analysis=new WorkItemAnalysisService(store).analyze(key,limit);
+     var plan=new ImplementationPlanService().build(analysis);
+     java.util.List<io.capstead.agentframework.model.GitChange> changes=new java.util.ArrayList<>();
+     for(var repository:store.repositoryStates())
+      changes.addAll(GitSupport.changedFiles(repository.name(),repository.root(),repository.indexedCommit(),head));
+     var validation=new ImplementationValidationService().validate(plan,changes);
+     if(format.equals("json"))System.out.println(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(validation));
+     else printValidation(validation);
+    }catch(IllegalArgumentException e){System.err.println(e.getMessage());return 2;}
+   }return 0;
+  }
+ }
+
+ private static void printValidation(io.capstead.agentframework.model.ImplementationValidationReport report){
+  System.out.println("IMPLEMENTATION VALIDATION — "+report.decision());
+  System.out.println("\nOBSERVED COMMITTED CHANGES");
+  if(report.observedChanges().isEmpty())System.out.println("No committed changes found from indexed baselines to requested head.");
+  else report.observedChanges().forEach(c->System.out.printf("- %s | %s | %s | %s..%s%n",
+   c.repository(),c.status(),c.previousPath()==null?c.path():c.previousPath()+" -> "+c.path(),c.baseCommit(),c.headCommit()));
+  System.out.println("\nREQUIREMENT CHECKS");
+  report.requirementChecks().forEach(check->{
+   System.out.printf("- [%s] %s%n  %s%n",check.status(),check.requirement(),check.reason());
+   check.evidence().forEach(e->System.out.println("  Evidence: "+e));
+  });
+  System.out.println("\nLIMITATIONS");
+  report.limitations().forEach(item->System.out.println("- "+item));
  }
 
  static void writeOutput(Path output,String rendered)throws java.io.IOException{

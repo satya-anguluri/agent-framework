@@ -55,6 +55,34 @@ class WorkItemAnalysisTest{
    Path exported=root.resolve("plans").resolve("PROJECT-9.md");
    AgentFramework.writeOutput(exported,markdown);
    assertEquals(markdown,java.nio.file.Files.readString(exported));
+   var validation=new ImplementationValidationService().validate(plan,List.of(
+    new GitChange("producer","M","Producer.java",null,sha,"b".repeat(40)),
+    new GitChange("producer","M","src/test/java/ProducerTest.java",null,sha,"b".repeat(40)),
+    new GitChange("producer","M","charts/payment/values.yaml",null,sha,"b".repeat(40))));
+   assertEquals("HUMAN_REVIEW_REQUIRED",validation.decision());
+   assertTrue(validation.requirementChecks().stream().anyMatch(c->c.status()==ValidationStatus.SATISFIED));
+   assertTrue(validation.requirementChecks().stream().anyMatch(c->c.status()==ValidationStatus.UNVERIFIABLE));
+   assertFalse(validation.requirementChecks().stream().anyMatch(c->c.status()==ValidationStatus.MISSING));
+   assertThrows(UnsupportedOperationException.class,()->validation.observedChanges().add(null));
+   var missingTests=new ImplementationValidationService().validate(plan,List.of(
+    new GitChange("producer","M","Producer.java",null,sha,"b".repeat(40))));
+   assertTrue(missingTests.requirementChecks().stream().anyMatch(c->c.status()==ValidationStatus.MISSING));
+   var renamed=new ImplementationValidationService().validate(plan,List.of(
+    new GitChange("producer","R100","src/main/java/ProducerRenamed.java","Producer.java",sha,"b".repeat(40)),
+    new GitChange("producer","M","tests/test_producer.py",null,sha,"b".repeat(40))));
+   assertTrue(renamed.requirementChecks().stream().anyMatch(c->c.status()==ValidationStatus.SATISFIED&&
+    c.evidence().stream().anyMatch(e->e.contains("Producer.java -> src/main/java/ProducerRenamed.java"))));
+   assertTrue(ImplementationValidationService.isTest("foo_test.go"));
+   assertTrue(ImplementationValidationService.isTest("test_foo.py"));
+   assertTrue(ImplementationValidationService.isTest("src/foo.test.ts"));
+   assertTrue(ImplementationValidationService.isTest("src/foo.spec.ts"));
+   assertTrue(ImplementationValidationService.isTest("tests/payment.rb"));
+   assertFalse(ImplementationValidationService.isTest("src/main/Contest.java"));
+   var crossRepo=new ImplementationValidationService().validate(plan,List.of(
+    new GitChange("producer","M","Producer.java",null,sha,"b".repeat(40)),
+    new GitChange("consumer","M","tests/UnrelatedTest.java",null,sha,"b".repeat(40))));
+   assertTrue(crossRepo.requirementChecks().stream().anyMatch(c->c.requirement().endsWith("producer")&&
+    c.status()==ValidationStatus.MISSING));
   }
  }
  @Test void acceptsTrackerNeutralKeys(){
