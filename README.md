@@ -332,3 +332,58 @@ java -jar "$AF_JAR" review-work-item \
 The artifact includes the work-item provenance, per-repository baseline/head comparison table (including repositories with no changed files), status counts, committed-change table, satisfied checks, missing evidence, unverifiable requirements, approval gates, and validation limitations. Validation requires clean worktrees so uncommitted changes cannot be silently omitted. Markdown fields are escaped before rendering.
 
 The framework only writes the requested local artifact. It does not connect to a pull-request provider, post comments, approve, merge, deploy, or modify source code.
+
+
+## Install a released executable
+
+Set the desired version and download both the executable JAR and checksum from GitHub Releases:
+
+```bash
+AF_VERSION="0.1.0"
+AF_RELEASE="https://github.com/satya-anguluri/agent-framework/releases/download/v$AF_VERSION"
+
+mkdir -p "$HOME/.local/share/agent-framework"
+curl --fail-with-body --location \
+  --output "$HOME/.local/share/agent-framework/agent-framework-$AF_VERSION.jar" \
+  "$AF_RELEASE/agent-framework-$AF_VERSION.jar"
+curl --fail-with-body --location \
+  --output "$HOME/.local/share/agent-framework/agent-framework-$AF_VERSION.jar.sha256" \
+  "$AF_RELEASE/agent-framework-$AF_VERSION.jar.sha256"
+
+cd "$HOME/.local/share/agent-framework"
+sha256sum --check "agent-framework-$AF_VERSION.jar.sha256"
+java -jar "agent-framework-$AF_VERSION.jar" --help
+```
+
+Upgrade by downloading a newer version beside the existing JAR, verifying its checksum, running `--help` and the project smoke test, backing up the SQLite database, and then updating your `AF_JAR` variable. Keep the previous verified JAR for rollback; database downgrade compatibility is not guaranteed.
+
+## Consume the Maven package
+
+Tagged releases publish `io.capstead:agent-framework:<version>` to GitHub Packages. Configure a GitHub Packages credential in Maven `settings.xml` under server ID `github`, then declare:
+
+```xml
+<dependency>
+  <groupId>io.capstead</groupId>
+  <artifactId>agent-framework</artifactId>
+  <version>0.1.0</version>
+</dependency>
+```
+
+The executable JAR remains the simplest installation for CLI usage.
+
+## Release process
+
+Maintainers create a release by pushing a SemVer tag that points to a verified commit:
+
+```bash
+mvn --batch-mode clean verify
+artifact="$(find target -maxdepth 1 -name 'agent-framework-*.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' ! -name 'original-*' -print -quit)"
+bash scripts/smoke-test.sh "$artifact"
+
+git tag -a v0.1.0 -m "Agent Framework 0.1.0"
+git push origin v0.1.0
+```
+
+The release workflow derives the Maven version from the tag, verifies the project, runs the packaged smoke test, publishes to GitHub Packages, creates a SHA-256 checksum, and attaches both files to a GitHub Release.
+
+See [configuration reference](docs/configuration.md) and [compatibility policy](docs/compatibility.md).
