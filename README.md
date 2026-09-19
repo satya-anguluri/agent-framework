@@ -210,6 +210,7 @@ curl --fail-with-body --silent --show-error \
 java -jar "$AF_JAR" work-item-import \
   --db "$AF_DB" \
   --adapter jira \
+  --adapter-option acceptanceField=customfield_10042 \
   --source-uri "$JIRA_BASE_URL/browse/PAY-9" \
   --file /tmp/jira-PAY-9.json
 ```
@@ -237,5 +238,9 @@ Use the namespaced identifier when different trackers contain the same key:
 ```bash
 java -jar "$AF_JAR" analyze-work-item --db "$AF_DB" "jira:PAY-9"
 ```
+
+Jira custom-field IDs are instance-specific. Set `acceptanceField` to the field ID used by your Jira site; omit it when acceptance criteria are not mapped.
+
+All stored provenance URLs have user information, query parameters, and fragments removed before persistence.
 
 Additional trackers can implement `WorkItemAdapter` and register the implementation with Java `ServiceLoader`; no analysis-engine changes are required.
