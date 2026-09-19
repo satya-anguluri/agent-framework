@@ -45,7 +45,7 @@ final class PullRequestReviewRenderer {
    check.evidence().forEach(e->out.append("  - Evidence: ").append(text(e)).append("\n"));
   }
  }
- private static String cell(String value){return text(value).replace("\\","\\\\").replace("|","\\|");}
+ static String cell(String value){return text(value).replace("\\","\\\\").replace("|","\\|");}
  private static String text(String value){
   return Objects.toString(value,"").replace("\r"," ").replace("\n"," ").replace("<","&lt;").replace(">","&gt;");
  }
