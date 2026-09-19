@@ -4,10 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.capstead.agentframework.model.JiraWorkItem;
 import io.capstead.agentframework.model.RepositoryConfig;
 import io.capstead.agentframework.model.WorkItem;
+import io.capstead.agentframework.workitem.WorkItemAdapters;
 import picocli.CommandLine;
 import picocli.CommandLine.*;
 import picocli.CommandLine.Model.CommandSpec;
 import java.nio.file.*;
+import java.net.URI;
 import java.util.concurrent.Callable;
 
 @Command(name="agent-framework",mixinStandardHelpOptions=true,
@@ -124,10 +126,18 @@ public class AgentFramework implements Runnable{
    if(rows.isEmpty())System.out.println("No resolved dependency edges found.");else rows.forEach(System.out::println);
   }return 0;}}
 
- @Command(name="work-item-import",description="Import a tracker-neutral work item from JSON")
+ @Command(name="work-item-import",description="Import canonical or tracker-specific JSON")
  static class WorkItemImport extends DbCommand implements Callable<Integer>{
   @Option(names="--file",required=true)Path file;
-  public Integer call()throws Exception{var item=new ObjectMapper().readValue(file.toFile(),WorkItem.class);item.validate();try(var store=new SqliteKnowledgeStore(db)){store.initialize();store.upsertWorkItem(item);}System.out.println("Imported work item "+item.key());return 0;}
+  @Option(names="--adapter",defaultValue="json",description="Adapter: ${COMPLETION-CANDIDATES}")String adapter;
+  @Option(names="--source-uri",description="Authoritative tracker URL for provenance")URI sourceUri;
+  public Integer call()throws Exception{
+   URI origin=sourceUri!=null?sourceUri:file.toAbsolutePath().toUri();
+   var payload=new ObjectMapper().readTree(file.toFile());
+   var item=new WorkItemAdapters().require(adapter).read(payload,origin);item.validate();
+   try(var store=new SqliteKnowledgeStore(db)){store.initialize();store.upsertWorkItem(item);}
+   System.out.println("Imported "+item.sourceSystem()+":"+item.key());return 0;
+  }
  }
  @Command(name="work-item-show",description="Show a tracker-neutral work item")
  static class WorkItemShow extends DbCommand implements Callable<Integer>{
