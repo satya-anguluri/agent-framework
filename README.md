@@ -176,3 +176,71 @@ java -jar "$AF_JAR" analyze-work-item --db "$AF_DB" PROJECT-1234
 ```
 
 The report combines current code, dependencies, configuration, delivery artifacts, and relevant history. It reports required verification separately from observed facts.
+
+
+## Import tracker payloads through adapters
+
+The core remains tracker-neutral. Built-in adapters normalize canonical JSON, GitHub Issues, Jira REST issue responses, and Linear GraphQL issue responses into the same `WorkItem` contract. Fetching stays outside the framework so authentication tokens are never stored in the knowledge database.
+
+GitHub:
+
+```bash
+curl --fail-with-body --silent --show-error \
+  --header "Authorization: Bearer $GITHUB_TOKEN" \
+  --header "Accept: application/vnd.github+json" \
+  "https://api.github.com/repos/acme/payments/issues/42" \
+  --output /tmp/github-42.json
+
+java -jar "$AF_JAR" work-item-import \
+  --db "$AF_DB" \
+  --adapter github \
+  --source-uri "https://api.github.com/repos/acme/payments/issues/42" \
+  --file /tmp/github-42.json
+```
+
+Jira:
+
+```bash
+curl --fail-with-body --silent --show-error \
+  --user "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+  --header "Accept: application/json" \
+  "$JIRA_BASE_URL/rest/api/3/issue/PAY-9" \
+  --output /tmp/jira-PAY-9.json
+
+java -jar "$AF_JAR" work-item-import \
+  --db "$AF_DB" \
+  --adapter jira \
+  --adapter-option acceptanceField=customfield_10042 \
+  --source-uri "$JIRA_BASE_URL/browse/PAY-9" \
+  --file /tmp/jira-PAY-9.json
+```
+
+Linear:
+
+```bash
+curl --fail-with-body --silent --show-error \
+  --request POST \
+  --header "Authorization: $LINEAR_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"query":"query { issue(id: \"PAY-10\") { identifier title description state { name } url updatedAt } }"}' \
+  "https://api.linear.app/graphql" \
+  --output /tmp/linear-PAY-10.json
+
+java -jar "$AF_JAR" work-item-import \
+  --db "$AF_DB" \
+  --adapter linear \
+  --source-uri "https://linear.app/acme/issue/PAY-10" \
+  --file /tmp/linear-PAY-10.json
+```
+
+Use the namespaced identifier when different trackers contain the same key:
+
+```bash
+java -jar "$AF_JAR" analyze-work-item --db "$AF_DB" "jira:PAY-9"
+```
+
+Jira custom-field IDs are instance-specific. Set `acceptanceField` to the field ID used by your Jira site; omit it when acceptance criteria are not mapped.
+
+All stored provenance URLs have user information, query parameters, and fragments removed before persistence.
+
+Additional trackers can implement `WorkItemAdapter` and register the implementation with Java `ServiceLoader`; no analysis-engine changes are required.
