@@ -6,6 +6,7 @@ import io.capstead.agentframework.model.HistoryCommit;
 import io.capstead.agentframework.model.WorkItem;
 import io.capstead.agentframework.model.AnalysisEvidence;
 import io.capstead.agentframework.model.AnalysisCategory;
+import io.capstead.agentframework.extract.AnalysisCategoryRegistry;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -15,6 +16,7 @@ import java.util.*;
 
 final class SqliteKnowledgeStore implements AutoCloseable {
     record RepositoryState(String name, Path root, String indexedCommit) {}
+    private static final AnalysisCategoryRegistry CATEGORY_REGISTRY=new AnalysisCategoryRegistry();
     private final Connection connection;
 
     SqliteKnowledgeStore(Path db) throws SQLException, IOException {
@@ -365,8 +367,9 @@ final class SqliteKnowledgeStore implements AutoCloseable {
             ps.setString(1,query);ps.setInt(2,limit);ps.setInt(3,limit);
             try(ResultSet rs=ps.executeQuery()){while(rs.next()){
                 String kind=rs.getString(2),path=rs.getString(4);
-                rows.add(new AnalysisEvidence(AnalysisCategory.classify(kind,path),rs.getString(1),kind,
-                  rs.getString(3),path,(Integer)rs.getObject(5),rs.getString(6),rs.getString(7)));
+                Number line=(Number)rs.getObject(5);
+                rows.add(new AnalysisEvidence(CATEGORY_REGISTRY.classify(kind,path),rs.getString(1),kind,
+                  rs.getString(3),path,line==null?null:line.intValue(),rs.getString(6),rs.getString(7)));
             }}
         }
         return List.copyOf(rows);
