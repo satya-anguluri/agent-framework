@@ -1,3 +1,144 @@
 # Agent Framework
 
-Cross-repository engineering context and Jira execution framework.
+A provenance-first engineering context system for Jira-driven changes spanning **Mapper, Applier, Deployer, Deployment Manager**, and their shared database.
+
+It builds a focused knowledge index, then requires the agent to inspect current source before changing anything. The index is a locator, never a replacement for live code.
+
+## Current MVP
+
+- Index multiple clean Git worktrees at a specific commit
+- Extract Java types, Spring endpoints, JPA table mappings, and Flyway/Liquibase SQL objects
+- Exclude runtime configuration and common secret-bearing files
+- Store repository, source path, line, and commit provenance
+- Reject stale search results after a checkout advances
+- Derive deterministic cross-repository relationships for shared tables/routes
+- Produce a blast-radius evidence report with facts separated from possible impact
+- Search using SQLite FTS5
+- Import normalized Jira work items with source URL/update provenance
+- Generate a Jira-driven blast-radius evidence report
+- Index complete Git history as lightweight Jira→commit→changed-file relationships
+- Link historical changed files to current classes, endpoints, tables, and documents
+- Follow Git rename chains so older paths resolve to current source locations
+- Retrieve historical Jira context from a new requirement or code concept
+
+Full historical Jira bodies are intentionally not preloaded. Git history stores lightweight Jira links, and older Jira details can be hydrated on demand. Direct Jira API synchronization and architecture-decision management are planned next. The current import contract is intentionally connector-neutral.
+
+
+## Bash quick start
+
+Run these commands from the `agent-framework` repository root.
+
+### 1. Build and verify
+
+```bash
+mvn --batch-mode clean verify
+
+AF_JAR="target/agent-framework-0.1.0-SNAPSHOT.jar"
+AF_DB=".agent/context.db"
+AF_CONFIG="config/repositories.json"
+```
+
+### 2. Configure the four repositories
+
+```bash
+cp config/repositories.example.json "$AF_CONFIG"
+
+# Edit localPath for mapper, applier, deployer, and deployment-manager.
+${EDITOR:-vi} "$AF_CONFIG"
+```
+
+Each configured repository must be a clean local Git checkout. The framework rejects modified or untracked files during repository indexing so the stored commit provenance remains accurate.
+
+### 3. Initialize and index current code
+
+```bash
+java -jar "$AF_JAR" init \
+  --db "$AF_DB"
+
+java -jar "$AF_JAR" index \
+  --db "$AF_DB" \
+  --config "$AF_CONFIG"
+```
+
+Re-run `index` whenever one of the repositories advances to a new commit. Search and blast-radius commands refuse to use stale repository evidence.
+
+### 4. Index Jira-linked Git history
+
+Run this after current-code indexing because history records are linked to the indexed repositories and source files. Git rename detection preserves the original path and resolves it through rename chains to the current path.
+
+```bash
+java -jar "$AF_JAR" history-index \
+  --db "$AF_DB" \
+  --config "$AF_CONFIG"
+```
+
+### 5. Search current repository knowledge
+
+```bash
+java -jar "$AF_JAR" search \
+  --db "$AF_DB" \
+  "rollback deployment status"
+
+java -jar "$AF_JAR" blast-radius \
+  --db "$AF_DB" \
+  "deployment"
+```
+
+### 6. Inspect historical Jira relationships
+
+```bash
+java -jar "$AF_JAR" jira-history \
+  --db "$AF_DB" \
+  FHB-1234
+
+java -jar "$AF_JAR" related-jiras \
+  --db "$AF_DB" \
+  "mapper validation status"
+```
+
+`jira-history` starts with a known Jira key. `related-jiras` starts with a new requirement or code concept and follows current code → source file → historical commit → Jira key.
+
+### 7. Import a current Jira work item
+
+Copy and edit the connector-neutral example:
+
+```bash
+cp examples/jira-work-item.json /tmp/FHB-1234.json
+${EDITOR:-vi} /tmp/FHB-1234.json
+
+java -jar "$AF_JAR" jira-import \
+  --db "$AF_DB" \
+  --file /tmp/FHB-1234.json
+
+java -jar "$AF_JAR" jira-show \
+  --db "$AF_DB" \
+  FHB-1234
+```
+
+### 8. Generate the Jira-driven blast radius
+
+```bash
+java -jar "$AF_JAR" jira-blast-radius \
+  --db "$AF_DB" \
+  FHB-1234
+```
+
+The report separates observed repository evidence from possible impact. The agent must still inspect current source, tests, API/message contracts, database compatibility, and rollout order before implementation.
+
+## Refresh after repository changes
+
+```bash
+mvn --batch-mode verify
+
+java -jar "$AF_JAR" index \
+  --db "$AF_DB" \
+  --config "$AF_CONFIG"
+
+java -jar "$AF_JAR" history-index \
+  --db "$AF_DB" \
+  --config "$AF_CONFIG"
+```
+
+Authentication and cloning stay outside the indexer, preventing credentials from entering the knowledge database.
+
+See [docs/architecture.md](docs/architecture.md) and [AGENTS.md](AGENTS.md).

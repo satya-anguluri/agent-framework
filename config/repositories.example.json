@@ -1,0 +1,8 @@
+{
+  "repositories": [
+    {"name":"mapper","localPath":"../mapper","defaultBranch":"main"},
+    {"name":"applier","localPath":"../applier","defaultBranch":"main"},
+    {"name":"deployer","localPath":"../deployer","defaultBranch":"main"},
+    {"name":"deployment-manager","localPath":"../deployment-manager","defaultBranch":"main"}
+  ]
+}

@@ -1,0 +1,7 @@
+target/
+.agent/
+config/repositories.json
+*.db
+*.db-shm
+*.db-wal
+.idea/
