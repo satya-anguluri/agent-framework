@@ -32,6 +32,9 @@ java -jar "$jar_path" validate-work-item --db "$db_path" --head HEAD   --format 
 java -jar "$jar_path" review-work-item --db "$db_path" --head HEAD   --format markdown --output "$smoke_root/review.md" SAMPLE-1
 
 grep -q '"workItem"' "$smoke_root/analysis.json"
+grep -q '"API_AND_MESSAGES"' "$smoke_root/analysis.json"
+grep -q '"HELM_AND_KUBERNETES"' "$smoke_root/analysis.json"
+grep -q 'orders.created' "$smoke_root/analysis.json"
 grep -q '# Implementation Plan: SAMPLE-1' "$smoke_root/plan.md"
 grep -q '"HUMAN_REVIEW_REQUIRED"' "$smoke_root/validation.json"
 grep -q '# Pull-request review evidence: SAMPLE-1' "$smoke_root/review.md"
