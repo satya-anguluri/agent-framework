@@ -1,5 +1,6 @@
 package io.capstead.agentframework.workitem;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.*;
 import io.capstead.agentframework.model.WorkItem;
 import java.net.URI;
