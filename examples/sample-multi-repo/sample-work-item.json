@@ -1,0 +1,10 @@
+{
+  "key": "SAMPLE-1",
+  "sourceSystem": "internal",
+  "summary": "Change orders.created delivery",
+  "description": "Update the order producer and payment consumer safely",
+  "acceptanceCriteria": "Preserve message compatibility and deployment rollback",
+  "status": "ready",
+  "sourceUrl": "https://tracker.example.com/SAMPLE-1",
+  "sourceUpdatedAt": "2026-09-19T00:00:00Z"
+}

@@ -1,0 +1,5 @@
+image:
+  repository: example/order-service
+  tag: latest
+messaging:
+  ordersCreated: orders.created

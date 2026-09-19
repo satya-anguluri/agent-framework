@@ -1,0 +1,4 @@
+payment:
+  timeout: 2s
+messaging:
+  orders-created: orders.created
