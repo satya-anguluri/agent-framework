@@ -75,3 +75,22 @@ Java `ServiceLoader` extension points:
 - `WorkItemAdapter`
 
 The shaded executable merges service descriptors so extensions remain discoverable when packaged correctly.
+
+## Agent protocol
+
+Run `serve --db <path>` to read newline-delimited JSON requests from stdin and write newline-delimited JSON responses to stdout. This transport is intentionally agent-neutral and can be wrapped by Hermes, Claude, an MCP server, or another local tool without adding agent-specific dependencies to the framework.
+
+Request methods:
+
+```json
+{"id":"1","method":"health"}
+{"id":"2","method":"explain","params":{"question":"How does preorder work currently?","limit":25}}
+```
+
+The `id` is echoed unchanged. Successful responses contain `ok: true` and `result`; failures contain `ok: false` and an `error` with a stable code and message. `explain` refuses requests when any configured repository has advanced beyond its indexed commit or cannot be inspected.
+
+The limit must be between 1 and 100. Keep it small for agent prompts. Repository root paths and configuration values are not returned.
+
+### MCP stdio
+
+Run `mcp --db <path>` for MCP clients. The server implements the MCP `2025-06-18` initialization lifecycle plus `tools/list` and `tools/call`, with `health` and `explain_context` as read-only tools. Messages are newline-delimited JSON-RPC on stdin/stdout; nothing except valid MCP messages is written to stdout.

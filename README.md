@@ -24,6 +24,8 @@ It builds a focused knowledge index, then requires the agent to inspect current 
 - Resolve deterministic HTTP-service and messaging dependencies
 - Understand Helm, application configuration, Vault references, Jenkinsfiles, and common CI/CD pipelines
 - Import tracker-neutral work items and generate a consolidated evidence report
+- Answer natural-language engineering questions with bounded, provenance-backed context bundles
+- Serve the same context through a generic newline-delimited JSON agent protocol
 
 Full historical Jira bodies are intentionally not preloaded. Git history stores lightweight Jira links, and older Jira details can be hydrated on demand. Direct Jira API synchronization and architecture-decision management are planned next. The current import contract is intentionally connector-neutral.
 
@@ -398,3 +400,59 @@ git push origin v0.1.0
 The release workflow derives the Maven version from the tag, verifies the project, runs the packaged smoke test, publishes to GitHub Packages, creates a SHA-256 checksum, and attaches both files to a GitHub Release.
 
 See [configuration reference](docs/configuration.md) and [compatibility policy](docs/compatibility.md).
+
+## Ask how the current system works
+
+After indexing, retrieve a small evidence bundle without rescanning the repository:
+
+```bash
+java -jar "$AF_JAR" explain \
+  --db "$AF_DB" \
+  --format json \
+  --limit 25 \
+  "How does preorder work currently?" \
+  > /tmp/preorder-context.json
+```
+
+The response contains ranked observed evidence, deterministic relationships, exact repository/path/line/commit provenance, and explicit limitations. It is context for an engineer or coding agent—not a generated diagnosis. The command refuses stale repository indexes.
+
+For a monorepo acceptance test, confirm that the result ranks the preorder controller/service, persistence, messages, configuration, and relevant tests without presenting unrelated projects as mandatory changes. An agent should inspect only the cited current files before making a behavioral claim.
+
+## Connect Hermes or another coding agent
+
+`serve` exposes a project-neutral newline-delimited JSON protocol over standard input/output. Each request and response occupies exactly one line; stdout contains protocol responses only.
+
+```bash
+printf '%s\n' \
+  '{"id":"health-1","method":"health"}' \
+  '{"id":"explain-1","method":"explain","params":{"question":"How does preorder work currently?","limit":25}}' \
+  | java -jar "$AF_JAR" serve --db "$AF_DB"
+```
+
+Supported methods:
+
+- `health`: reports whether every indexed repository still matches its live Git `HEAD`.
+- `explain`: returns the same bounded context bundle as `explain --format json`.
+
+Agents must call `health` or handle `STALE_INDEX`, use the returned evidence as a locator, and open only the cited live files needed to verify the answer. The protocol never modifies repositories, trackers, pull requests, or deployments and does not accept credentials.
+
+For MCP clients such as coding agents, configure the executable JAR as a local stdio server:
+
+```json
+{
+  "mcpServers": {
+    "engineering-context": {
+      "command": "java",
+      "args": [
+        "-jar",
+        "/absolute/path/agent-framework-0.1.0.jar",
+        "mcp",
+        "--db",
+        "/absolute/path/.agent/context.db"
+      ]
+    }
+  }
+}
+```
+
+The MCP server implements protocol version `2025-06-18` over stdio and exposes two read-only tools: `health` and `explain_context`. The exact client configuration filename is agent-specific; the server itself contains no Hermes-, Claude-, IDE-, or repository-specific code.
