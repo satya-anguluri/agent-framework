@@ -55,6 +55,7 @@ final class SqliteKnowledgeStore implements AutoCloseable {
                 in.executeBatch();
             }
             rebuildRelationships();
+            rebuildHistoryKnowledgeLinks();
             connection.createStatement().execute("INSERT INTO knowledge_fts(knowledge_fts) VALUES('rebuild')");
             connection.commit();
         }catch(SQLException e){connection.rollback();throw e;}finally{connection.setAutoCommit(true);}
@@ -191,6 +192,7 @@ final class SqliteKnowledgeStore implements AutoCloseable {
                 }
                 commit.executeBatch();file.executeBatch();jira.executeBatch();
             }
+            rebuildHistoryKnowledgeLinks();
             connection.commit();
         }catch(SQLException e){connection.rollback();throw e;}finally{connection.setAutoCommit(true);}
     }
@@ -209,6 +211,41 @@ final class SqliteKnowledgeStore implements AutoCloseable {
             try(ResultSet rs=ps.executeQuery()){while(rs.next())rows.add(
                 "%s | %s | %s%n%s%nFiles:%n%s".formatted(rs.getString(1),rs.getString(2),rs.getString(3),
                  rs.getString(4),rs.getString(5)));
+            }
+        }
+        return rows;
+    }
+
+
+    private void rebuildHistoryKnowledgeLinks()throws SQLException{
+        connection.createStatement().execute("DELETE FROM commit_knowledge");
+        connection.createStatement().execute("""
+            INSERT OR IGNORE INTO commit_knowledge(repository_id,commit_sha,knowledge_id)
+            SELECT f.repository_id,f.commit_sha,k.id
+            FROM commit_files f JOIN knowledge k
+              ON k.repository_id=f.repository_id AND k.source_path=f.file_path""");
+    }
+
+    List<String> relatedJiras(String query,int limit)throws SQLException{
+        List<String> rows=new ArrayList<>();
+        try(PreparedStatement ps=connection.prepareStatement("""
+            WITH seeds AS (
+              SELECT k.id,k.kind,k.name,k.source_path,k.repository_id
+              FROM knowledge_fts f JOIN knowledge k ON k.id=f.rowid
+              WHERE knowledge_fts MATCH ? ORDER BY bm25(knowledge_fts) LIMIT ?
+            )
+            SELECT DISTINCT j.jira_key,r.name,h.commit_sha,h.committed_at,h.subject,
+                   s.kind,s.name,s.source_path
+            FROM seeds s JOIN commit_knowledge ck ON ck.knowledge_id=s.id
+            JOIN commit_jira j ON j.repository_id=ck.repository_id AND j.commit_sha=ck.commit_sha
+            JOIN history_commits h ON h.repository_id=ck.repository_id AND h.commit_sha=ck.commit_sha
+            JOIN repositories r ON r.id=ck.repository_id
+            ORDER BY h.committed_at DESC LIMIT ?""")){
+            ps.setString(1,query);ps.setInt(2,limit);ps.setInt(3,limit);
+            try(ResultSet rs=ps.executeQuery()){while(rs.next())rows.add(
+                "%s | %s | %s | %s%n%s%nCurrent evidence: %s %s at %s".formatted(
+                 rs.getString(1),rs.getString(2),rs.getString(3),rs.getString(4),
+                 rs.getString(5),rs.getString(6),rs.getString(7),rs.getString(8))));
             }
         }
         return rows;

@@ -12,7 +12,8 @@ import java.util.concurrent.Callable;
 @Command(name="agent-framework",mixinStandardHelpOptions=true,
  subcommands={AgentFramework.Init.class,AgentFramework.Index.class,AgentFramework.Search.class,
  AgentFramework.BlastRadius.class,AgentFramework.JiraImport.class,AgentFramework.JiraShow.class,
- AgentFramework.JiraBlastRadius.class,AgentFramework.HistoryIndex.class,AgentFramework.JiraHistory.class})
+ AgentFramework.JiraBlastRadius.class,AgentFramework.HistoryIndex.class,AgentFramework.JiraHistory.class,
+ AgentFramework.RelatedJiras.class})
 public class AgentFramework implements Runnable{
  public static void main(String[]args){System.exit(new CommandLine(new AgentFramework()).execute(args));}
  public void run(){CommandLine.usage(this,System.out);}
@@ -97,6 +98,19 @@ public class AgentFramework implements Runnable{
    var rows=store.jiraHistory(key,limit);
    if(rows.isEmpty())System.out.println("No Jira-linked commits found for "+key.toUpperCase());
    else rows.forEach(System.out::println);
+  }return 0;}}
+
+
+ @Command(name="related-jiras",description="Find historical Jira work linked to current indexed code evidence")
+ static class RelatedJiras extends DbCommand implements Callable<Integer>{
+  @Parameters(index="0")String query;@Option(names="--limit",defaultValue="50")int limit;
+  public Integer call()throws Exception{try(var store=new SqliteKnowledgeStore(db)){
+   if(!verifyCurrent(store))return 2;
+   var rows=store.relatedJiras(query,limit);
+   System.out.println("HISTORICAL JIRAS LINKED THROUGH CURRENT CODE");
+   if(rows.isEmpty())System.out.println("No historical Jira links matched the current evidence.");
+   else rows.forEach(System.out::println);
+   System.out.println("\nHistorical requirements are context only; verify them against current code and the new acceptance criteria.");
   }return 0;}}
 
  private static void printBlastRadius(java.util.List<String> rows){

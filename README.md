@@ -17,6 +17,8 @@ It builds a focused knowledge index, then requires the agent to inspect current 
 - Import normalized Jira work items with source URL/update provenance
 - Generate a Jira-driven blast-radius evidence report
 - Index complete Git history as lightweight Jira→commit→changed-file relationships
+- Link historical changed files to current classes, endpoints, tables, and documents
+- Retrieve historical Jira context from a new requirement or code concept
 
 Full historical Jira bodies are intentionally not preloaded. Git history stores lightweight Jira links, and older Jira details can be hydrated on demand. Direct Jira API synchronization and architecture-decision management are planned next. The current import contract is intentionally connector-neutral.
 
@@ -35,6 +37,7 @@ java -jar target/agent-framework-0.1.0-SNAPSHOT.jar jira-import --db .agent/cont
 java -jar target/agent-framework-0.1.0-SNAPSHOT.jar jira-blast-radius --db .agent/context.db FHB-1234
 java -jar target/agent-framework-0.1.0-SNAPSHOT.jar history-index --db .agent/context.db --config config/repositories.json
 java -jar target/agent-framework-0.1.0-SNAPSHOT.jar jira-history --db .agent/context.db FHB-1234
+java -jar target/agent-framework-0.1.0-SNAPSHOT.jar related-jiras --db .agent/context.db "mapper validation status"
 ```
 
 Authentication and cloning stay outside the indexer, preventing credentials from entering the knowledge database.

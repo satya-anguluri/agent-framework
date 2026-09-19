@@ -46,3 +46,11 @@ CREATE TABLE IF NOT EXISTS commit_jira (
  FOREIGN KEY(repository_id,commit_sha) REFERENCES history_commits(repository_id,commit_sha) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_commit_jira_key ON commit_jira(jira_key);
+
+CREATE TABLE IF NOT EXISTS commit_knowledge (
+ repository_id INTEGER NOT NULL, commit_sha TEXT NOT NULL,
+ knowledge_id INTEGER NOT NULL REFERENCES knowledge(id) ON DELETE CASCADE,
+ PRIMARY KEY(repository_id,commit_sha,knowledge_id),
+ FOREIGN KEY(repository_id,commit_sha) REFERENCES history_commits(repository_id,commit_sha) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_commit_knowledge_item ON commit_knowledge(knowledge_id);
