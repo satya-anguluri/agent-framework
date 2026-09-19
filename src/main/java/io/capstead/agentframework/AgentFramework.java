@@ -223,7 +223,7 @@ public class AgentFramework implements Runnable{
   System.out.println("\nOBSERVED COMMITTED CHANGES");
   if(report.observedChanges().isEmpty())System.out.println("No committed changes found from indexed baselines to requested head.");
   else report.observedChanges().forEach(c->System.out.printf("- %s | %s | %s | %s..%s%n",
-   c.repository(),c.status(),c.path(),c.baseCommit(),c.headCommit()));
+   c.repository(),c.status(),c.previousPath()==null?c.path():c.previousPath()+" -> "+c.path(),c.baseCommit(),c.headCommit()));
   System.out.println("\nREQUIREMENT CHECKS");
   report.requirementChecks().forEach(check->{
    System.out.printf("- [%s] %s%n  %s%n",check.status(),check.requirement(),check.reason());
