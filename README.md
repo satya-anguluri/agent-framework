@@ -300,7 +300,7 @@ java -jar "$AF_JAR" validate-work-item \
   PROJECT-1234 > /tmp/PROJECT-1234-validation.json
 ```
 
-The command reports committed file changes with repository and base/head commit provenance. Requirement checks use three states:
+The command reports committed file changes with repository and base/head commit provenance. Renames preserve both baseline and destination paths. Test evidence is evaluated per repository using common Java, Go, Python, JavaScript, TypeScript, Ruby, and conventional test/spec directory patterns. Requirement checks use three states:
 
 - `SATISFIED`: objective file evidence was found, but behavioral correctness is not proven.
 - `MISSING`: expected evidence such as tests is absent and needs explanation or remediation.
