@@ -260,3 +260,24 @@ Additional trackers can implement `WorkItemAdapter` and register the implementat
 ### Extending analysis categories
 
 Custom extractors can also provide an `EvidenceCategoryResolver` through Java `ServiceLoader`. External resolvers run before the built-in mappings, allowing new artifact kinds to participate in verification and rollout sections without modifying the framework core.
+
+
+## Export an implementation plan
+
+After reviewing the unified analysis, export a proposed plan for human approval:
+
+```bash
+java -jar "$AF_JAR" plan-work-item \
+  --db "$AF_DB" \
+  --format markdown \
+  --output /tmp/PROJECT-1234-plan.md \
+  PROJECT-1234
+
+java -jar "$AF_JAR" plan-work-item \
+  --db "$AF_DB" \
+  --format json \
+  --output /tmp/PROJECT-1234-plan.json \
+  PROJECT-1234
+```
+
+The plan keeps observed evidence separate from proposed repository investigations. It includes cited paths, test focus, dependency-order questions, assumptions, approval gates, and rollback requirements. Cited files are candidates for inspection—not claims that every file must change. The command refuses to plan from stale repository indexes.
