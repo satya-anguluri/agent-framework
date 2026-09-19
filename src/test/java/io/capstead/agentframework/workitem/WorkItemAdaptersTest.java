@@ -21,15 +21,28 @@ class WorkItemAdaptersTest {
         assertEquals("Require idempotency",item.description());
     }
 
+    @Test void parsesGithubBrowserIssueUrl()throws Exception{
+        var payload=mapper.readTree("{\"number\":42,\"title\":\"Protect retries\"}");
+        var item=adapters.require("github").read(payload,
+          URI.create("https://github.com/acme/payments/issues/42"));
+        assertEquals("acme.payments:42",item.key());
+    }
+
     @Test void normalizesJiraIssue()throws Exception{
         var payload=mapper.readTree("""
           {"key":"PAY-9","fields":{"summary":"Protect payment retries","description":"Require idempotency",
            "status":{"name":"Open"},"updated":"2026-09-19T01:00:00Z"}}
           """);
-        var item=adapters.require("jira").read(payload,
-          URI.create("https://jira.example.com/rest/api/3/issue/PAY-9"));
+        var mapped=mapper.readTree("""
+          {"key":"PAY-9","fields":{"summary":"Protect payment retries","description":"Require idempotency",
+           "customfield_10042":"No duplicate charge","status":{"name":"Open"},"updated":"2026-09-19T01:00:00Z"}}
+          """);
+        var item=adapters.require("jira").read(mapped,
+          URI.create("https://jira.example.com/rest/api/3/issue/PAY-9"),
+          java.util.Map.of("acceptanceField","customfield_10042"));
         assertEquals("PAY-9",item.key());
         assertEquals("Open",item.status());
+        assertEquals("No duplicate charge",item.acceptanceCriteria());
     }
 
     @Test void normalizesLinearGraphqlEnvelope()throws Exception{
@@ -41,6 +54,20 @@ class WorkItemAdaptersTest {
         var item=adapters.require("linear").read(payload,URI.create("https://api.linear.app/graphql"));
         assertEquals("PAY-10",item.key());
         assertEquals("linear",item.sourceSystem());
+        assertEquals("https://api.linear.app/graphql",item.sourceUrl());
+    }
+
+    @Test void canonicalJsonFallsBackToSourceUri()throws Exception{
+        var payload=mapper.readTree("""
+          {"key":"PAY-11","sourceSystem":"internal","summary":"Trace rollout"}
+          """);
+        var item=adapters.require("json").read(payload,URI.create("https://tracker.example.com/PAY-11"));
+        assertEquals("https://tracker.example.com/PAY-11",item.sourceUrl());
+    }
+
+    @Test void stripsCredentialsAndQueryFromProvenance(){
+        var clean=WorkItemProvenance.sanitize(URI.create("https://user:secret@example.com/issues/1?token=secret#part"));
+        assertEquals("https://example.com/issues/1",clean.toString());
     }
 
     @Test void rejectsUnknownAdapter(){
