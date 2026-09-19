@@ -183,14 +183,21 @@ final class SqliteKnowledgeStore implements AutoCloseable {
                 PreparedStatement file=connection.prepareStatement("""
                     INSERT INTO commit_files(repository_id,commit_sha,file_path) VALUES(?,?,?)""");
                 PreparedStatement jira=connection.prepareStatement("""
-                    INSERT INTO commit_jira(repository_id,commit_sha,jira_key) VALUES(?,?,?)""")){
+                    INSERT INTO commit_jira(repository_id,commit_sha,jira_key) VALUES(?,?,?)""");
+                PreparedStatement lineage=connection.prepareStatement("""
+                    INSERT INTO commit_file_lineage(repository_id,commit_sha,original_path,current_path)
+                    VALUES(?,?,?,?)""")){
                 for(HistoryCommit item:commits){
                     commit.setLong(1,repoId);commit.setString(2,item.sha());commit.setString(3,item.committedAt());
                     commit.setString(4,item.subject());commit.addBatch();
-                    for(String path:item.files()){file.setLong(1,repoId);file.setString(2,item.sha());file.setString(3,path);file.addBatch();}
+                    for(String path:item.files()){
+                        file.setLong(1,repoId);file.setString(2,item.sha());file.setString(3,path);file.addBatch();
+                        lineage.setLong(1,repoId);lineage.setString(2,item.sha());lineage.setString(3,path);
+                        lineage.setString(4,item.currentPath(path));lineage.addBatch();
+                    }
                     for(String key:item.jiraKeys()){jira.setLong(1,repoId);jira.setString(2,item.sha());jira.setString(3,key);jira.addBatch();}
                 }
-                commit.executeBatch();file.executeBatch();jira.executeBatch();
+                commit.executeBatch();file.executeBatch();jira.executeBatch();lineage.executeBatch();
             }
             rebuildHistoryKnowledgeLinks();
             connection.commit();
@@ -201,10 +208,11 @@ final class SqliteKnowledgeStore implements AutoCloseable {
         List<String> rows=new ArrayList<>();
         try(PreparedStatement ps=connection.prepareStatement("""
             SELECT r.name,h.commit_sha,h.committed_at,h.subject,
-                   coalesce(group_concat(f.file_path,char(10)),'')
+                   coalesce(group_concat(CASE WHEN f.original_path=f.current_path THEN f.original_path
+                     ELSE f.original_path||' -> '||f.current_path END,char(10)),'')
             FROM commit_jira j JOIN history_commits h ON h.repository_id=j.repository_id AND h.commit_sha=j.commit_sha
             JOIN repositories r ON r.id=h.repository_id
-            LEFT JOIN commit_files f ON f.repository_id=h.repository_id AND f.commit_sha=h.commit_sha
+            LEFT JOIN commit_file_lineage f ON f.repository_id=h.repository_id AND f.commit_sha=h.commit_sha
             WHERE j.jira_key=? GROUP BY r.name,h.commit_sha,h.committed_at,h.subject
             ORDER BY h.committed_at DESC LIMIT ?""")){
             ps.setString(1,key.toUpperCase(Locale.ROOT));ps.setInt(2,limit);
@@ -222,8 +230,8 @@ final class SqliteKnowledgeStore implements AutoCloseable {
         connection.createStatement().execute("""
             INSERT OR IGNORE INTO commit_knowledge(repository_id,commit_sha,knowledge_id)
             SELECT f.repository_id,f.commit_sha,k.id
-            FROM commit_files f JOIN knowledge k
-              ON k.repository_id=f.repository_id AND k.source_path=f.file_path""");
+            FROM commit_file_lineage f JOIN knowledge k
+              ON k.repository_id=f.repository_id AND k.source_path=f.current_path""");
     }
 
     List<String> relatedJiras(String query,int limit)throws SQLException{

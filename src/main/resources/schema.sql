@@ -54,3 +54,11 @@ CREATE TABLE IF NOT EXISTS commit_knowledge (
  FOREIGN KEY(repository_id,commit_sha) REFERENCES history_commits(repository_id,commit_sha) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_commit_knowledge_item ON commit_knowledge(knowledge_id);
+
+CREATE TABLE IF NOT EXISTS commit_file_lineage (
+ repository_id INTEGER NOT NULL, commit_sha TEXT NOT NULL,
+ original_path TEXT NOT NULL, current_path TEXT NOT NULL,
+ PRIMARY KEY(repository_id,commit_sha,original_path),
+ FOREIGN KEY(repository_id,commit_sha) REFERENCES history_commits(repository_id,commit_sha) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_file_lineage_current ON commit_file_lineage(repository_id,current_path);

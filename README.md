@@ -18,6 +18,7 @@ It builds a focused knowledge index, then requires the agent to inspect current 
 - Generate a Jira-driven blast-radius evidence report
 - Index complete Git history as lightweight Jira→commit→changed-file relationships
 - Link historical changed files to current classes, endpoints, tables, and documents
+- Follow Git rename chains so older paths resolve to current source locations
 - Retrieve historical Jira context from a new requirement or code concept
 
 Full historical Jira bodies are intentionally not preloaded. Git history stores lightweight Jira links, and older Jira details can be hydrated on demand. Direct Jira API synchronization and architecture-decision management are planned next. The current import contract is intentionally connector-neutral.
@@ -63,7 +64,7 @@ Re-run `index` whenever one of the repositories advances to a new commit. Search
 
 ### 4. Index Jira-linked Git history
 
-Run this after current-code indexing because history records are linked to the indexed repositories and source files.
+Run this after current-code indexing because history records are linked to the indexed repositories and source files. Git rename detection preserves the original path and resolves it through rename chains to the current path.
 
 ```bash
 java -jar "$AF_JAR" history-index \
