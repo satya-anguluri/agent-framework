@@ -14,7 +14,7 @@ final class PullRequestReviewService {
    counts.put(status,rows.size());immutable.put(status,rows);
   }
   return new PullRequestReviewArtifact(validation.workItem(),validation.decision(),
-   Collections.unmodifiableMap(counts),List.copyOf(validation.observedChanges()),
+   Collections.unmodifiableMap(counts),List.copyOf(validation.repositoryComparisons()),List.copyOf(validation.observedChanges()),
    Collections.unmodifiableMap(immutable),List.copyOf(validation.limitations()));
  }
 }
