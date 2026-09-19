@@ -170,6 +170,22 @@ $AfDb = Join-Path $PWD ".agent\context.db"
 $AfConfig = Join-Path $PWD "config\repositories.json"
 ```
 
+Maven must also use Java 21. `java -version` can report Java 21 while Maven still follows an older `JAVA_HOME`:
+
+```powershell
+mvn -version
+$Java21Home = ((java -XshowSettings:properties -version 2>&1 | Select-String "java.home =").Line -replace "^\s*java.home\s*=\s*", "").Trim()
+$env:JAVA_HOME = $Java21Home
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+mvn -version
+```
+
+The final command must report Java 21 before running the build. To retain the corrected `JAVA_HOME` for new PowerShell windows:
+
+```powershell
+[Environment]::SetEnvironmentVariable("JAVA_HOME", $Java21Home, "User")
+```
+
 ### 2. Configure and index repositories
 
 ```powershell
@@ -183,6 +199,38 @@ java -jar $AfJar dependencies --db $AfDb
 ```
 
 Use absolute Windows paths in the JSON configuration. Backslashes must be escaped, for example `C:\\source\\order-service`, or use forward slashes such as `C:/source/order-service`.
+
+Generate the configuration with PowerShell to avoid JSON errors such as `Unrecognized character escape 'U'`:
+
+```powershell
+$RepositoryPath = (Resolve-Path (Join-Path $env:USERPROFILE "Downloads\event-driven-marketplace-platform")).Path
+@{ repositories = @(@{ name = "event-driven-marketplace-platform"; localPath = $RepositoryPath; defaultBranch = "main" }) } | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 $AfConfig
+```
+
+#### Index an active repository safely
+
+Indexing intentionally refuses a dirty worktree. If the repository has tracked or untracked changes, do not commit or stash them merely to run the framework. Create a separate clean Git worktree at the exact commit you want to index:
+
+```powershell
+$RepositorySource = Join-Path $env:USERPROFILE "Downloads\event-driven-marketplace-platform"
+$RepositoryIndex = Join-Path $env:USERPROFILE "agent-framework-worktrees\marketplace-index"
+New-Item -ItemType Directory -Force (Split-Path $RepositoryIndex) | Out-Null
+git -C $RepositorySource worktree add --detach $RepositoryIndex HEAD
+git -C $RepositoryIndex status --short
+@{ repositories = @(@{ name = "event-driven-marketplace-platform"; localPath = $RepositoryIndex; defaultBranch = "main" }) } | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 $AfConfig
+java -jar $AfJar index --db $AfDb --config $AfConfig
+```
+
+`git status --short` must produce no output. Keep this clean worktree available after indexing because search, analysis, and agent queries verify its current Git commit before returning evidence. Your original working directory and uncommitted changes remain untouched.
+
+To refresh the clean worktree later, first ensure it is clean, move it to the desired commit, and re-index:
+
+```powershell
+git -C $RepositorySource fetch origin
+git -C $RepositoryIndex status --short
+git -C $RepositoryIndex checkout --detach origin/main
+java -jar $AfJar index --db $AfDb --config $AfConfig
+```
 
 ### 3. Search and explain current behavior
 
