@@ -74,6 +74,16 @@ class WorkItemAnalysisTest{
    assertTrue(reviewMarkdown.contains("## MISSING checks"));
    assertTrue(reviewMarkdown.contains("## UNVERIFIABLE checks"));
    assertTrue(reviewMarkdown.contains("does not approve the change"));
+   assertEquals("repo"+"\\".repeat(3)+"|name",PullRequestReviewRenderer.cell("repo\\|name"));
+   var noDiffValidation=new ImplementationValidationService().validate(plan,List.of(),List.of(
+    new RepositoryComparison("producer",sha,"b".repeat(40))));
+   var noDiffReview=new PullRequestReviewService().build(noDiffValidation);
+   assertTrue(noDiffReview.observedChanges().isEmpty());
+   assertEquals(1,noDiffReview.repositoryComparisons().size());
+   String noDiffMarkdown=PullRequestReviewRenderer.markdown(noDiffReview);
+   assertTrue(noDiffMarkdown.contains("## Repository comparisons"));
+   assertTrue(noDiffMarkdown.contains(sha));
+   assertTrue(noDiffMarkdown.contains("b".repeat(40)));
    var missingTests=new ImplementationValidationService().validate(plan,List.of(
     new GitChange("producer","M","Producer.java",null,sha,"b".repeat(40))));
    assertTrue(missingTests.requirementChecks().stream().anyMatch(c->c.status()==ValidationStatus.MISSING));
