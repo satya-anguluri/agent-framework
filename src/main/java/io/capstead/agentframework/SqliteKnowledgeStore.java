@@ -56,6 +56,7 @@ final class SqliteKnowledgeStore implements AutoCloseable {
             }
             rebuildRelationships();
             rebuildHistoryKnowledgeLinks();
+            rebuildDependencyEdges();
             connection.createStatement().execute("INSERT INTO knowledge_fts(knowledge_fts) VALUES('rebuild')");
             connection.commit();
         }catch(SQLException e){connection.rollback();throw e;}finally{connection.setAutoCommit(true);}
@@ -259,6 +260,40 @@ final class SqliteKnowledgeStore implements AutoCloseable {
         return rows;
     }
 
+
+    private void rebuildDependencyEdges()throws SQLException{
+        connection.createStatement().execute("DELETE FROM dependency_edges");
+        connection.createStatement().execute("""
+            INSERT OR IGNORE INTO dependency_edges(source_repository_id,source_knowledge_id,target_repository_id,
+              target_knowledge_id,dependency_type,artifact_name,evidence)
+            SELECT p.repository_id,p.id,c.repository_id,c.id,'message',p.name,
+                   'matching producer and consumer destination'
+            FROM knowledge p JOIN knowledge c ON c.name=p.name
+            WHERE p.kind='message-producer' AND c.kind='message-consumer' AND p.repository_id<>c.repository_id""");
+        connection.createStatement().execute("""
+            INSERT OR IGNORE INTO dependency_edges(source_repository_id,source_knowledge_id,target_repository_id,
+              target_knowledge_id,dependency_type,artifact_name,evidence)
+            SELECT c.repository_id,c.id,r.id,NULL,'service',c.name,
+                   'client name matches configured repository'
+            FROM knowledge c JOIN repositories r ON lower(r.name)=lower(substr(c.name,instr(c.name,':')+1))
+            WHERE c.kind='service-client' AND c.repository_id<>r.id""");
+    }
+    List<String> dependencyGraph()throws SQLException{
+        List<String> rows=new ArrayList<>();
+        try(ResultSet rs=connection.createStatement().executeQuery("""
+            SELECT source.name,sk.kind,sk.name,coalesce(target.name,'unresolved'),
+              coalesce(tk.kind,'repository'),coalesce(tk.name,e.artifact_name),e.dependency_type,
+              e.evidence,sk.source_path,sk.commit_sha
+            FROM dependency_edges e JOIN repositories source ON source.id=e.source_repository_id
+            JOIN knowledge sk ON sk.id=e.source_knowledge_id
+            LEFT JOIN repositories target ON target.id=e.target_repository_id
+            LEFT JOIN knowledge tk ON tk.id=e.target_knowledge_id
+            ORDER BY source.name,e.dependency_type,e.artifact_name""")){
+            while(rs.next())rows.add("%s [%s %s] -> %s [%s %s] via %s%n  Evidence: %s at %s @ %s".formatted(
+              rs.getString(1),rs.getString(2),rs.getString(3),rs.getString(4),rs.getString(5),
+              rs.getString(6),rs.getString(7),rs.getString(8),rs.getString(9),rs.getString(10)));
+        }return rows;
+    }
     private int countParameters(String sql){return (int)sql.chars().filter(c->c=='?').count();}
     @Override public void close()throws SQLException{connection.close();}
 }

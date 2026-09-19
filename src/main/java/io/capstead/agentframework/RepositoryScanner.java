@@ -1,6 +1,7 @@
 package io.capstead.agentframework;
 
 import io.capstead.agentframework.model.KnowledgeItem;
+import io.capstead.agentframework.extract.*;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.*;
@@ -8,6 +9,13 @@ import java.util.*;
 import java.util.regex.*;
 
 final class RepositoryScanner {
+    private final List<SourceArtifactExtractor> extractors;
+    RepositoryScanner() {
+        List<SourceArtifactExtractor> loaded=new ArrayList<>();
+        ServiceLoader.load(SourceArtifactExtractor.class).forEach(loaded::add);
+        if(loaded.stream().noneMatch(e->e instanceof JavaSpringDependencyExtractor)) loaded.add(new JavaSpringDependencyExtractor());
+        extractors=List.copyOf(loaded);
+    }
     private static final Set<String> SKIP = Set.of(".git", "target", "build", ".idea", ".gradle", "node_modules");
     private static final Pattern JAVA_TYPE = Pattern.compile("\\b(class|interface|record|enum)\\s+([A-Za-z_$][\\w$]*)");
     private static final Pattern TABLE = Pattern.compile("@Table\\s*\\(\\s*name\\s*=\\s*\"([^\"]+)\"");

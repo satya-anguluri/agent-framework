@@ -13,7 +13,7 @@ import java.util.concurrent.Callable;
  subcommands={AgentFramework.Init.class,AgentFramework.Index.class,AgentFramework.Search.class,
  AgentFramework.BlastRadius.class,AgentFramework.JiraImport.class,AgentFramework.JiraShow.class,
  AgentFramework.JiraBlastRadius.class,AgentFramework.HistoryIndex.class,AgentFramework.JiraHistory.class,
- AgentFramework.RelatedJiras.class})
+ AgentFramework.RelatedJiras.class,AgentFramework.Dependencies.class})
 public class AgentFramework implements Runnable{
  public static void main(String[]args){System.exit(new CommandLine(new AgentFramework()).execute(args));}
  public void run(){CommandLine.usage(this,System.out);}
@@ -113,6 +113,14 @@ public class AgentFramework implements Runnable{
    System.out.println("\nHistorical requirements are context only; verify them against current code and the new acceptance criteria.");
   }return 0;}}
 
+
+ @Command(name="dependencies",description="Show deterministic cross-repository dependency edges")
+ static class Dependencies extends DbCommand implements Callable<Integer>{
+  public Integer call()throws Exception{try(var store=new SqliteKnowledgeStore(db)){
+   if(!verifyCurrent(store))return 2;var rows=store.dependencyGraph();
+   System.out.println("OBSERVED CROSS-REPOSITORY DEPENDENCIES");
+   if(rows.isEmpty())System.out.println("No resolved dependency edges found.");else rows.forEach(System.out::println);
+  }return 0;}}
  private static void printBlastRadius(java.util.List<String> rows){
   System.out.println("OBSERVED MATCHES AND DETERMINISTIC RELATIONSHIPS");
   if(rows.isEmpty())System.out.println("No indexed evidence matched this work item.");
