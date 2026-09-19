@@ -158,7 +158,7 @@ Authentication and cloning stay outside the indexer, preventing credentials from
 
 ## Windows PowerShell quick start
 
-Run these commands from the `agent-framework` repository root in PowerShell 7 or Windows PowerShell 5.1. Java 21+, Maven, and Git must be available on `PATH`.
+Run these commands from the `agent-framework` repository root in PowerShell 7 or Windows PowerShell 5.1. Java 21+, Maven, and Git must be available on `PATH`. Every executable command is kept on one line so it can be copied and pasted directly.
 
 ### 1. Build and configure paths
 
@@ -191,12 +191,7 @@ java -jar $AfJar search --db $AfDb "rollback deployment status"
 java -jar $AfJar blast-radius --db $AfDb "deployment"
 java -jar $AfJar related-jiras --db $AfDb "mapper validation status"
 
-java -jar $AfJar explain `
-  --db $AfDb `
-  --format json `
-  --limit 25 `
-  "How does preorder work currently?" |
-  Set-Content -Encoding utf8 ".\preorder-context.json"
+java -jar $AfJar explain --db $AfDb --format json --limit 25 "How does preorder work currently?" | Set-Content -Encoding utf8 ".\preorder-context.json"
 ```
 
 ### 4. Import and analyze a work item
@@ -205,55 +200,27 @@ java -jar $AfJar explain `
 Copy-Item ".\examples\work-item.json" ".\PROJECT-1234.json"
 notepad ".\PROJECT-1234.json"
 
-java -jar $AfJar work-item-import `
-  --db $AfDb `
-  --file ".\PROJECT-1234.json"
+java -jar $AfJar work-item-import --db $AfDb --file ".\PROJECT-1234.json"
 
-java -jar $AfJar analyze-work-item `
-  --db $AfDb `
-  --format json `
-  "PROJECT-1234" |
-  Set-Content -Encoding utf8 ".\PROJECT-1234-analysis.json"
+java -jar $AfJar analyze-work-item --db $AfDb --format json "PROJECT-1234" | Set-Content -Encoding utf8 ".\PROJECT-1234-analysis.json"
 
-java -jar $AfJar plan-work-item `
-  --db $AfDb `
-  --format markdown `
-  --output ".\PROJECT-1234-plan.md" `
-  "PROJECT-1234"
+java -jar $AfJar plan-work-item --db $AfDb --format markdown --output ".\PROJECT-1234-plan.md" "PROJECT-1234"
 ```
 
 Fetch a GitHub issue with `curl.exe` so PowerShell does not substitute its web-request alias:
 
 ```powershell
-curl.exe --fail-with-body --location `
-  --header "Authorization: Bearer $env:GITHUB_TOKEN" `
-  --header "Accept: application/vnd.github+json" `
-  "https://api.github.com/repos/acme/payments/issues/42" `
-  --output ".\github-42.json"
+curl.exe --fail-with-body --location --header "Authorization: Bearer $env:GITHUB_TOKEN" --header "Accept: application/vnd.github+json" "https://api.github.com/repos/acme/payments/issues/42" --output ".\github-42.json"
 
-java -jar $AfJar work-item-import `
-  --db $AfDb `
-  --adapter github `
-  --source-uri "https://api.github.com/repos/acme/payments/issues/42" `
-  --file ".\github-42.json"
+java -jar $AfJar work-item-import --db $AfDb --adapter github --source-uri "https://api.github.com/repos/acme/payments/issues/42" --file ".\github-42.json"
 ```
 
 ### 5. Validate and review committed changes
 
 ```powershell
-java -jar $AfJar validate-work-item `
-  --db $AfDb `
-  --head HEAD `
-  --format json `
-  "PROJECT-1234" |
-  Set-Content -Encoding utf8 ".\PROJECT-1234-validation.json"
+java -jar $AfJar validate-work-item --db $AfDb --head HEAD --format json "PROJECT-1234" | Set-Content -Encoding utf8 ".\PROJECT-1234-validation.json"
 
-java -jar $AfJar review-work-item `
-  --db $AfDb `
-  --head HEAD `
-  --format markdown `
-  --output ".\PROJECT-1234-review.md" `
-  "PROJECT-1234"
+java -jar $AfJar review-work-item --db $AfDb --head HEAD --format markdown --output ".\PROJECT-1234-review.md" "PROJECT-1234"
 ```
 
 ### 6. Run the Windows packaged smoke test
@@ -500,12 +467,8 @@ $Release = "https://github.com/satya-anguluri/agent-framework/releases/download/
 $InstallDir = Join-Path $env:LOCALAPPDATA "AgentFramework"
 New-Item -ItemType Directory -Force $InstallDir | Out-Null
 
-curl.exe --fail-with-body --location `
-  --output (Join-Path $InstallDir "agent-framework-$AfVersion.jar") `
-  "$Release/agent-framework-$AfVersion.jar"
-curl.exe --fail-with-body --location `
-  --output (Join-Path $InstallDir "agent-framework-$AfVersion.jar.sha256") `
-  "$Release/agent-framework-$AfVersion.jar.sha256"
+curl.exe --fail-with-body --location --output (Join-Path $InstallDir "agent-framework-$AfVersion.jar") "$Release/agent-framework-$AfVersion.jar"
+curl.exe --fail-with-body --location --output (Join-Path $InstallDir "agent-framework-$AfVersion.jar.sha256") "$Release/agent-framework-$AfVersion.jar.sha256"
 
 $Expected = ((Get-Content (Join-Path $InstallDir "agent-framework-$AfVersion.jar.sha256")) -split '\s+')[0].ToLowerInvariant()
 $Actual = (Get-FileHash -Algorithm SHA256 (Join-Path $InstallDir "agent-framework-$AfVersion.jar")).Hash.ToLowerInvariant()
