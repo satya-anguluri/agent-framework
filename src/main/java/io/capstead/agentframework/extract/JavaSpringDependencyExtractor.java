@@ -6,7 +6,7 @@ import java.util.regex.*;
 public final class JavaSpringDependencyExtractor implements SourceArtifactExtractor{
  private record Rule(String kind,String protocol,Pattern pattern){}
  private static final List<Rule> RULES=List.of(
-  new Rule("service-client","http",Pattern.compile("@FeignClient\\s*\\([^)]*(?:(?:name|value)\\s*=\\s*)?\"([^\"]+)\"")),
+  new Rule("service-client","http",Pattern.compile("@FeignClient\\s*\\(\\s*(?:(?:name|value)\\s*=\\s*)?\"([^\"]+)\"")),
   new Rule("message-consumer","kafka",Pattern.compile("@KafkaListener\\s*\\([^)]*topics\\s*=\\s*\"([^\"]+)\"")),
   new Rule("message-consumer","sqs",Pattern.compile("@SqsListener\\s*\\(\\s*\"([^\"]+)\"")),
   new Rule("message-consumer","azure-service-bus",Pattern.compile("@(?:ServiceBusListener|ServiceBusProcessor)\\s*\\(\\s*\"([^\"]+)\"")),
