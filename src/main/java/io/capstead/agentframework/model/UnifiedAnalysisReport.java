@@ -7,6 +7,6 @@ public record UnifiedAnalysisReport(
   WorkItem workItem,
   Map<AnalysisCategory,List<AnalysisEvidence>> observedEvidence,
   List<String> resolvedDependencies,
-  List<String> relatedHistoricalWorkItems,
+  List<String> relatedHistoricalJiraContext,
   List<String> requiredVerification,
   List<String> rolloutAndRollbackChecks) {}
