@@ -351,7 +351,11 @@ curl --fail-with-body --location \
   "$AF_RELEASE/agent-framework-$AF_VERSION.jar.sha256"
 
 cd "$HOME/.local/share/agent-framework"
-sha256sum --check "agent-framework-$AF_VERSION.jar.sha256"
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256sum --check "agent-framework-$AF_VERSION.jar.sha256"
+else
+  shasum -a 256 --check "agent-framework-$AF_VERSION.jar.sha256"
+fi
 java -jar "agent-framework-$AF_VERSION.jar" --help
 ```
 
@@ -359,9 +363,16 @@ Upgrade by downloading a newer version beside the existing JAR, verifying its ch
 
 ## Consume the Maven package
 
-Tagged releases publish `io.capstead:agent-framework:<version>` to GitHub Packages. Configure a GitHub Packages credential in Maven `settings.xml` under server ID `github`, then declare:
+Tagged releases publish `io.capstead:agent-framework:<version>` to GitHub Packages. Configure a GitHub Packages credential in Maven `settings.xml` under server ID `github`. Consumers must also declare the GitHub Packages repository because `distributionManagement` controls publishing only:
 
 ```xml
+<repositories>
+  <repository>
+    <id>github</id>
+    <url>https://maven.pkg.github.com/satya-anguluri/agent-framework</url>
+  </repository>
+</repositories>
+
 <dependency>
   <groupId>io.capstead</groupId>
   <artifactId>agent-framework</artifactId>
