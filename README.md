@@ -281,3 +281,29 @@ java -jar "$AF_JAR" plan-work-item \
 ```
 
 The plan keeps observed evidence separate from proposed repository investigations. It includes cited paths, test focus, dependency-order questions, assumptions, approval gates, and rollback requirements. Cited files are candidates for inspection—not claims that every file must change. The command refuses to plan from stale repository indexes.
+
+
+## Validate an implementation
+
+Index repositories at the intended implementation baseline, import the work item, and generate the plan. After the implementation is committed in each local repository, compare each indexed baseline with the requested head:
+
+```bash
+java -jar "$AF_JAR" validate-work-item \
+  --db "$AF_DB" \
+  --head HEAD \
+  PROJECT-1234
+
+java -jar "$AF_JAR" validate-work-item \
+  --db "$AF_DB" \
+  --head HEAD \
+  --format json \
+  PROJECT-1234 > /tmp/PROJECT-1234-validation.json
+```
+
+The command reports committed file changes with repository and base/head commit provenance. Requirement checks use three states:
+
+- `SATISFIED`: objective file evidence was found, but behavioral correctness is not proven.
+- `MISSING`: expected evidence such as tests is absent and needs explanation or remediation.
+- `UNVERIFIABLE`: source inspection, execution evidence, or human approval is required.
+
+The decision is always `HUMAN_REVIEW_REQUIRED`. Validation never approves, merges, deploys, or edits the implementation. Uncommitted worktree changes are intentionally excluded from the Git comparison.
