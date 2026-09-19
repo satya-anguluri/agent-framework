@@ -3,6 +3,7 @@ package io.capstead.agentframework;
 import io.capstead.agentframework.model.IndexStatus;
 import io.capstead.agentframework.model.RepositoryIndexStatus;
 import java.util.ArrayList;
+import java.util.List;
 
 final class IndexStatusService {
   IndexStatus inspect(SqliteKnowledgeStore store) throws Exception {
