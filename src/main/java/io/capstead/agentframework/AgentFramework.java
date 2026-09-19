@@ -185,13 +185,17 @@ public class AgentFramework implements Runnable{
        :ImplementationPlanRenderer.markdown(plan);
      if(output==null)System.out.print(rendered);
      else{
-      Path parent=output.toAbsolutePath().getParent();if(parent!=null)Files.createDirectories(parent);
-      Files.writeString(output,rendered,StandardOpenOption.CREATE,StandardOpenOption.TRUNCATE_EXISTING);
+      writeOutput(output,rendered);
       System.out.println("Wrote implementation plan to "+output.toAbsolutePath());
      }
     }catch(IllegalArgumentException e){System.err.println(e.getMessage());return 2;}
    }return 0;
   }
+ }
+
+ static void writeOutput(Path output,String rendered)throws java.io.IOException{
+  Path parent=output.toAbsolutePath().getParent();if(parent!=null)Files.createDirectories(parent);
+  Files.writeString(output,rendered,StandardOpenOption.CREATE,StandardOpenOption.TRUNCATE_EXISTING,StandardOpenOption.WRITE);
  }
 
  private static void printUnifiedReport(io.capstead.agentframework.model.UnifiedAnalysisReport report)throws Exception{
