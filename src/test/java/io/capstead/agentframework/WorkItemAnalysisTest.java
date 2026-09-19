@@ -40,6 +40,16 @@ class WorkItemAnalysisTest{
    assertTrue(report.rolloutAndRollbackChecks().stream().anyMatch(v->v.contains("rollback")));
    assertThrows(UnsupportedOperationException.class,()->report.resolvedDependencies().add("mutable"));
    assertNotNull(report.observedEvidence().values().iterator().next().getFirst().lineStart());
+   var plan=new ImplementationPlanService().build(report);
+   assertEquals(2,plan.proposedRepositoryChanges().size());
+   assertTrue(plan.testRequirements().stream().anyMatch(v->v.contains("compatibility")));
+   assertTrue(plan.approvalGates().stream().anyMatch(v->v.contains("Database owner")));
+   assertTrue(plan.assumptionsToResolve().stream().allMatch(v->!v.isBlank()));
+   assertThrows(UnsupportedOperationException.class,()->plan.proposedRepositoryChanges().add(null));
+   String markdown=ImplementationPlanRenderer.markdown(plan);
+   assertTrue(markdown.contains("## Observed evidence"));
+   assertTrue(markdown.contains("## Approval gates"));
+   assertTrue(markdown.contains("not a diagnosis"));
   }
  }
  @Test void acceptsTrackerNeutralKeys(){
