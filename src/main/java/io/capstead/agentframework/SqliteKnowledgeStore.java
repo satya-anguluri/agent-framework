@@ -6,6 +6,7 @@ import io.capstead.agentframework.model.HistoryCommit;
 import io.capstead.agentframework.model.WorkItem;
 import io.capstead.agentframework.model.AnalysisEvidence;
 import io.capstead.agentframework.model.AnalysisCategory;
+import io.capstead.agentframework.model.ContextRelationship;
 import io.capstead.agentframework.extract.AnalysisCategoryRegistry;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -16,6 +17,7 @@ import java.util.*;
 
 final class SqliteKnowledgeStore implements AutoCloseable {
     record RepositoryState(String name, Path root, String indexedCommit) {}
+    record QuestionQuery(String fts,List<String> terms) {}
     private static final AnalysisCategoryRegistry CATEGORY_REGISTRY=new AnalysisCategoryRegistry();
     private final Connection connection;
 
@@ -117,6 +119,84 @@ final class SqliteKnowledgeStore implements AutoCloseable {
                 rs.getString(6),rs.getString(7)));}
         }
         return rows;
+    }
+
+    QuestionQuery questionQuery(String question){
+        Set<String> stop=Set.of("the","and","for","with","from","that","this","does","how","what","when",
+          "where","which","currently","current","work","works","working","into","your","our","are","was");
+        List<String> raw=new ArrayList<>();
+        var matcher=java.util.regex.Pattern.compile("[A-Za-z][A-Za-z0-9_-]{1,}").matcher(question);
+        while(matcher.find())raw.add(matcher.group().toLowerCase(Locale.ROOT).replace("-",""));
+        LinkedHashSet<String> terms=new LinkedHashSet<>();
+        for(String term:raw)if(term.length()>=3&&!stop.contains(term))terms.add(term);
+        for(int i=0;i+1<raw.size();i++){
+            String joined=raw.get(i)+raw.get(i+1);
+            if(joined.length()>=5&&!stop.contains(raw.get(i))&&!stop.contains(raw.get(i+1)))terms.add(joined);
+        }
+        List<String> bounded=terms.stream().limit(16).toList();
+        String fts=bounded.stream().map(t->"\""+t.replace("\"","")+"\"*").collect(java.util.stream.Collectors.joining(" OR "));
+        return new QuestionQuery(fts,bounded);
+    }
+
+    List<AnalysisEvidence> contextEvidence(String query,int limit)throws SQLException{
+        List<AnalysisEvidence> rows=new ArrayList<>();
+        try(PreparedStatement ps=connection.prepareStatement("""
+          SELECT r.name,k.kind,k.name,k.source_path,k.line_start,k.commit_sha,
+                 'Indexed '||k.kind||' named '||k.name
+          FROM knowledge_fts f JOIN knowledge k ON k.id=f.rowid
+          JOIN repositories r ON r.id=k.repository_id
+          WHERE knowledge_fts MATCH ?
+          ORDER BY bm25(knowledge_fts),r.name,k.source_path,coalesce(k.line_start,0),k.kind,k.name LIMIT ?""")){
+            ps.setString(1,query);ps.setInt(2,limit);
+            try(ResultSet rs=ps.executeQuery()){while(rs.next()){
+                String kind=rs.getString(2),path=rs.getString(4);Number line=(Number)rs.getObject(5);
+                rows.add(new AnalysisEvidence(CATEGORY_REGISTRY.classify(kind,path),rs.getString(1),kind,
+                  rs.getString(3),path,line==null?null:line.intValue(),rs.getString(6),rs.getString(7)));
+            }}
+        }
+        return List.copyOf(rows);
+    }
+
+    List<ContextRelationship> contextRelationships(String query,int limit)throws SQLException{
+        List<ContextRelationship> rows=new ArrayList<>();
+        try(PreparedStatement ps=connection.prepareStatement("""
+          WITH seeds AS (
+            SELECT rowid FROM knowledge_fts WHERE knowledge_fts MATCH ? ORDER BY bm25(knowledge_fts) LIMIT ?
+          ), edges AS (
+            SELECT e.dependency_type type,e.evidence evidence,
+              sr.name source_repository,sk.kind source_kind,sk.name source_name,sk.source_path source_path,
+              sk.line_start source_line,sk.commit_sha source_commit,
+              coalesce(tr.name,'unresolved') target_repository,coalesce(tk.kind,'repository') target_kind,
+              coalesce(tk.name,e.artifact_name) target_name,tk.source_path target_path,
+              tk.line_start target_line,tk.commit_sha target_commit
+            FROM dependency_edges e
+            JOIN knowledge sk ON sk.id=e.source_knowledge_id JOIN repositories sr ON sr.id=e.source_repository_id
+            LEFT JOIN knowledge tk ON tk.id=e.target_knowledge_id LEFT JOIN repositories tr ON tr.id=e.target_repository_id
+            WHERE e.source_knowledge_id IN (SELECT rowid FROM seeds) OR e.target_knowledge_id IN (SELECT rowid FROM seeds)
+            UNION
+            SELECT rel.relation,rel.evidence,
+              sr.name,sk.kind,sk.name,sk.source_path,sk.line_start,sk.commit_sha,
+              tr.name,tk.kind,tk.name,tk.source_path,tk.line_start,tk.commit_sha
+            FROM relationships rel JOIN knowledge sk ON sk.id=rel.source_knowledge_id
+            JOIN repositories sr ON sr.id=sk.repository_id
+            JOIN knowledge tk ON tk.kind=rel.target_kind AND lower(tk.name)=lower(rel.target_name) AND tk.id<>sk.id
+            JOIN repositories tr ON tr.id=tk.repository_id
+            WHERE rel.source_knowledge_id IN (SELECT rowid FROM seeds)
+          )
+          SELECT DISTINCT * FROM edges
+          ORDER BY type,source_repository,source_path,coalesce(source_line,0),target_repository,target_path LIMIT ?""")){
+            ps.setString(1,query);ps.setInt(2,limit);ps.setInt(3,limit);
+            try(ResultSet rs=ps.executeQuery()){while(rs.next())rows.add(new ContextRelationship(
+              rs.getString(1),rs.getString(2),rs.getString(3),rs.getString(4),rs.getString(5),rs.getString(6),
+              integer(rs,7),rs.getString(8),rs.getString(9),rs.getString(10),rs.getString(11),rs.getString(12),
+              integer(rs,13),rs.getString(14)));
+            }
+        }
+        return List.copyOf(rows);
+    }
+
+    private Integer integer(ResultSet rs,int column)throws SQLException{
+        Number value=(Number)rs.getObject(column);return value==null?null:value.intValue();
     }
 
 

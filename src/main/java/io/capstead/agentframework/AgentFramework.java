@@ -20,7 +20,8 @@ import java.util.*;
  AgentFramework.JiraBlastRadius.class,AgentFramework.HistoryIndex.class,AgentFramework.JiraHistory.class,
  AgentFramework.RelatedJiras.class,AgentFramework.Dependencies.class,
  AgentFramework.WorkItemImport.class,AgentFramework.WorkItemShow.class,AgentFramework.AnalyzeWorkItem.class,
- AgentFramework.PlanWorkItem.class,AgentFramework.ValidateWorkItem.class,AgentFramework.ReviewWorkItem.class})
+ AgentFramework.PlanWorkItem.class,AgentFramework.ValidateWorkItem.class,AgentFramework.ReviewWorkItem.class,
+ AgentFramework.Explain.class,AgentFramework.Serve.class,AgentFramework.Mcp.class})
 public class AgentFramework implements Runnable{
  public static void main(String[]args){System.exit(new CommandLine(new AgentFramework()).execute(args));}
  public void run(){CommandLine.usage(this,System.out);}
@@ -49,6 +50,34 @@ public class AgentFramework implements Runnable{
   public Integer call()throws Exception{try(var store=new SqliteKnowledgeStore(db)){
    if(!verifyCurrent(store))return 2;
    for(String row:store.search(query,limit))System.out.println(row);}return 0;}}
+
+ @Command(name="explain",description="Return a bounded provenance-backed context bundle for a question")
+ static class Explain extends DbCommand implements Callable<Integer>{
+  @Parameters(index="0",description="Question about the current indexed code")String question;
+  @Option(names="--limit",defaultValue="25")int limit;
+  @Option(names="--format",defaultValue="text",description="Output format: text or json")String format;
+  public Integer call()throws Exception{
+   if(!format.equals("text")&&!format.equals("json")){System.err.println("--format must be text or json");return 2;}
+   try(var store=new SqliteKnowledgeStore(db)){
+    store.initialize();if(!verifyCurrent(store))return 2;
+    try{
+     var bundle=new ContextQueryService(store).explain(question,limit);
+     if(format.equals("json"))System.out.println(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(bundle));
+     else printContextBundle(bundle);
+    }catch(IllegalArgumentException e){System.err.println(e.getMessage());return 2;}
+   }return 0;
+  }
+ }
+
+ @Command(name="serve",description="Serve the generic newline-delimited JSON agent protocol on stdin/stdout")
+ static class Serve extends DbCommand implements Callable<Integer>{
+  public Integer call()throws Exception{new AgentProtocolServer(db).run(System.in,System.out);return 0;}
+ }
+
+ @Command(name="mcp",description="Serve MCP 2025-06-18 over standard input/output")
+ static class Mcp extends DbCommand implements Callable<Integer>{
+  public Integer call()throws Exception{new McpServer(db).run(System.in,System.out);return 0;}
+ }
 
  @Command(name="blast-radius",description="Expand matching objects across repository relationships")
  static class BlastRadius extends DbCommand implements Callable<Integer>{
@@ -303,13 +332,30 @@ public class AgentFramework implements Runnable{
   System.out.println("Verify current callers, APIs, messages, migrations, tests, compatibility, and rollout order.");
  }
 
+ private static void printContextBundle(io.capstead.agentframework.model.ContextBundle bundle){
+  System.out.println("QUESTION\n"+bundle.question());
+  System.out.println("\nOBSERVED CURRENT EVIDENCE");
+  if(bundle.observedEvidence().isEmpty())System.out.println("No indexed evidence matched the question.");
+  else bundle.observedEvidence().forEach(row->System.out.printf("- %s | %s | %s | %s:%s | %s%n  %s%n",
+    row.repository(),row.kind(),row.name(),row.sourcePath(),row.lineStart()==null?"-":row.lineStart(),
+    row.commitSha(),row.detail()));
+  System.out.println("\nDETERMINISTIC RELATIONSHIPS");
+  if(bundle.deterministicRelationships().isEmpty())System.out.println("No deterministic relationships matched.");
+  else bundle.deterministicRelationships().forEach(row->System.out.printf(
+    "- %s [%s %s] -> %s [%s %s] via %s%n  Evidence: %s%n  Source: %s:%s @ %s%n  Target: %s:%s @ %s%n",
+    row.sourceRepository(),row.sourceKind(),row.sourceName(),row.targetRepository(),row.targetKind(),
+    row.targetName(),row.type(),row.evidence(),row.sourcePath(),row.sourceLine()==null?"-":row.sourceLine(),
+    row.sourceCommit(),java.util.Objects.toString(row.targetPath(),"unresolved"),
+    row.targetLine()==null?"-":row.targetLine(),java.util.Objects.toString(row.targetCommit(),"unresolved")));
+  System.out.println("\nLIMITATIONS");bundle.limitations().forEach(item->System.out.println("- "+item));
+ }
+
  private static boolean verifyCurrent(SqliteKnowledgeStore store)throws Exception{
-  boolean current=true;
-  for(var state:store.repositoryStates()){
-   String actual=GitSupport.head(state.root());
-   if(!actual.equals(state.indexedCommit())){current=false;System.err.printf(
-    "STALE: %s indexed=%s current=%s; re-index before using this evidence%n",state.name(),state.indexedCommit(),actual);}
-  }
-  return current;
+  var status=new IndexStatusService().inspect(store);
+  if(status.repositories().isEmpty())System.err.println("STALE: no repositories have been indexed.");
+  for(var state:status.repositories())if(!state.current())System.err.printf(
+    "STALE: %s indexed=%s current=%s; %s%n",state.repository(),state.indexedCommit(),
+    java.util.Objects.toString(state.currentCommit(),"unavailable"),state.detail());
+  return status.ready();
  }
 }
