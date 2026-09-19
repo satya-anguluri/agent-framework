@@ -23,6 +23,7 @@ It builds a focused knowledge index, then requires the agent to inspect current 
 - Extend languages and frameworks through a ServiceLoader extractor SPI
 - Resolve deterministic HTTP-service and messaging dependencies
 - Understand Helm, application configuration, Vault references, Jenkinsfiles, and common CI/CD pipelines
+- Import tracker-neutral work items and generate a consolidated evidence report
 
 Full historical Jira bodies are intentionally not preloaded. Git history stores lightweight Jira links, and older Jira details can be hydrated on demand. Direct Jira API synchronization and architecture-decision management are planned next. The current import contract is intentionally connector-neutral.
 
@@ -161,3 +162,17 @@ See [docs/architecture.md](docs/architecture.md) and [AGENTS.md](AGENTS.md).
 Built-in structural extractors understand Helm charts, Kubernetes templates, Spring application configuration, Vault HCL/policy references, Jenkinsfiles, GitHub Actions, Azure Pipelines, and GitLab CI. They retain identifiers such as configuration keys, Helm value references, resource kinds, Vault paths, pipeline stages, downstream jobs, actions, tasks, and templates.
 
 They deliberately do not retain configuration values, placeholder defaults, shell command bodies, tokens, passwords, or credential contents.
+
+
+## Analyze a work item
+
+The normalized contract supports Jira, Linear, GitHub Issues, and internal trackers.
+
+```bash
+cp examples/work-item.json /tmp/PROJECT-1234.json
+${EDITOR:-vi} /tmp/PROJECT-1234.json
+java -jar "$AF_JAR" work-item-import --db "$AF_DB" --file /tmp/PROJECT-1234.json
+java -jar "$AF_JAR" analyze-work-item --db "$AF_DB" PROJECT-1234
+```
+
+The report combines current code, dependencies, configuration, delivery artifacts, and relevant history. It reports required verification separately from observed facts.

@@ -3,6 +3,7 @@ package io.capstead.agentframework;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.capstead.agentframework.model.JiraWorkItem;
 import io.capstead.agentframework.model.RepositoryConfig;
+import io.capstead.agentframework.model.WorkItem;
 import picocli.CommandLine;
 import picocli.CommandLine.*;
 import picocli.CommandLine.Model.CommandSpec;
@@ -13,7 +14,8 @@ import java.util.concurrent.Callable;
  subcommands={AgentFramework.Init.class,AgentFramework.Index.class,AgentFramework.Search.class,
  AgentFramework.BlastRadius.class,AgentFramework.JiraImport.class,AgentFramework.JiraShow.class,
  AgentFramework.JiraBlastRadius.class,AgentFramework.HistoryIndex.class,AgentFramework.JiraHistory.class,
- AgentFramework.RelatedJiras.class,AgentFramework.Dependencies.class})
+ AgentFramework.RelatedJiras.class,AgentFramework.Dependencies.class,
+ AgentFramework.WorkItemImport.class,AgentFramework.WorkItemShow.class,AgentFramework.AnalyzeWorkItem.class})
 public class AgentFramework implements Runnable{
  public static void main(String[]args){System.exit(new CommandLine(new AgentFramework()).execute(args));}
  public void run(){CommandLine.usage(this,System.out);}
@@ -121,6 +123,25 @@ public class AgentFramework implements Runnable{
    System.out.println("OBSERVED CROSS-REPOSITORY DEPENDENCIES");
    if(rows.isEmpty())System.out.println("No resolved dependency edges found.");else rows.forEach(System.out::println);
   }return 0;}}
+
+ @Command(name="work-item-import",description="Import a tracker-neutral work item from JSON")
+ static class WorkItemImport extends DbCommand implements Callable<Integer>{
+  @Option(names="--file",required=true)Path file;
+  public Integer call()throws Exception{var item=new ObjectMapper().readValue(file.toFile(),WorkItem.class);item.validate();try(var store=new SqliteKnowledgeStore(db)){store.initialize();store.upsertWorkItem(item);}System.out.println("Imported work item "+item.key());return 0;}
+ }
+ @Command(name="work-item-show",description="Show a tracker-neutral work item")
+ static class WorkItemShow extends DbCommand implements Callable<Integer>{
+  @Parameters(index="0",description="Work-item key")String key;
+  public Integer call()throws Exception{try(var store=new SqliteKnowledgeStore(db)){store.initialize();var item=store.workItem(key);if(item.isEmpty()){System.err.println("Work item not found: "+key);return 2;}System.out.println(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(item.get()));}return 0;}
+ }
+ @Command(name="analyze-work-item",description="Analyze a work item against current indexed evidence")
+ static class AnalyzeWorkItem extends DbCommand implements Callable<Integer>{
+  @Parameters(index="0",description="Work-item key")String key;
+  @Option(names="--limit",defaultValue="25")int limit;
+  public Integer call()throws Exception{if(limit<1){System.err.println("--limit must be positive");return 2;}try(var store=new SqliteKnowledgeStore(db)){store.initialize();if(!verifyCurrent(store))return 2;var item=store.workItem(key);if(item.isEmpty()){System.err.println("Work item not found: "+key);return 2;}System.out.println("WORK ITEM");System.out.println(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(item.get()));section("OBSERVED CURRENT EVIDENCE",store.workItemEvidence(key,limit));section("RESOLVED DEPENDENCY EDGES",store.workItemDependencies(key,limit));section("RELATED HISTORICAL WORK ITEMS",store.relatedWorkItems(key,limit));System.out.println("\nREQUIRED VERIFICATION (NOT DIAGNOSIS)");System.out.println("- Confirm cited files and tests still implement the intended behavior.");System.out.println("- Verify API and message contracts, database compatibility, and consumers.");System.out.println("- Check Helm values/templates, application configuration, Vault references, Jenkinsfiles, and CI/CD pipelines.");System.out.println("- Define rollout, compatibility, observability, and rollback requirements.");System.out.println("- Resolve assumptions against the current acceptance criteria before implementation.");}return 0;}
+ }
+ private static void section(String title,java.util.List<String> rows){System.out.println("\n"+title);if(rows.isEmpty())System.out.println("No matching indexed evidence found.");else rows.forEach(System.out::println);}
+
  private static void printBlastRadius(java.util.List<String> rows){
   System.out.println("OBSERVED MATCHES AND DETERMINISTIC RELATIONSHIPS");
   if(rows.isEmpty())System.out.println("No indexed evidence matched this work item.");
