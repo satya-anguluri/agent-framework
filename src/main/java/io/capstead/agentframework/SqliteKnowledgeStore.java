@@ -89,7 +89,7 @@ final class SqliteKnowledgeStore implements AutoCloseable {
         WHERE knowledge_fts MATCH ? ORDER BY bm25(knowledge_fts) LIMIT ?""",query,limit);}
 
     List<String> blastRadius(String query,int limit)throws SQLException{return queryRows("""
-        WITH seeds AS (SELECT rowid FROM knowledge_fts WHERE knowledge_fts MATCH ? LIMIT ?),
+        WITH seeds AS (SELECT rowid FROM knowledge_fts WHERE knowledge_fts MATCH ? ORDER BY bm25(knowledge_fts) LIMIT ?),
         expanded AS (
           SELECT k.id FROM knowledge k JOIN seeds s ON s.rowid=k.id
           UNION
@@ -301,7 +301,7 @@ final class SqliteKnowledgeStore implements AutoCloseable {
         try{
             try(PreparedStatement ps=connection.prepareStatement("""
               INSERT INTO work_items(work_item_key,source_system,summary,description,acceptance_criteria,status,updated_at)
-              VALUES(?,?,?,?,?,?,?) ON CONFLICT(work_item_key) DO UPDATE SET source_system=excluded.source_system,
+              VALUES(?,?,?,?,?,?,?) ON CONFLICT(source_system,work_item_key) DO UPDATE SET
               summary=excluded.summary,description=excluded.description,acceptance_criteria=excluded.acceptance_criteria,
               status=excluded.status,updated_at=excluded.updated_at""")){
                 ps.setString(1,item.key());ps.setString(2,item.sourceSystem());ps.setString(3,item.summary());
@@ -309,11 +309,12 @@ final class SqliteKnowledgeStore implements AutoCloseable {
                 ps.setString(7,Instant.now().toString());ps.executeUpdate();
             }
             try(PreparedStatement ps=connection.prepareStatement("""
-              INSERT INTO work_item_sources(work_item_key,source_url,source_updated_at,imported_at) VALUES(?,?,?,?)
-              ON CONFLICT(work_item_key) DO UPDATE SET source_url=excluded.source_url,
-              source_updated_at=excluded.source_updated_at,imported_at=excluded.imported_at""")){
-                ps.setString(1,item.key());ps.setString(2,item.sourceUrl());ps.setString(3,item.sourceUpdatedAt());
-                ps.setString(4,Instant.now().toString());ps.executeUpdate();
+              INSERT INTO work_item_sources(source_system,work_item_key,source_url,source_updated_at,imported_at)
+              VALUES(?,?,?,?,?) ON CONFLICT(source_system,work_item_key) DO UPDATE SET
+              source_url=excluded.source_url,source_updated_at=excluded.source_updated_at,
+              imported_at=excluded.imported_at""")){
+                ps.setString(1,item.sourceSystem());ps.setString(2,item.key());ps.setString(3,item.sourceUrl());
+                ps.setString(4,item.sourceUpdatedAt());ps.setString(5,Instant.now().toString());ps.executeUpdate();
             }connection.commit();
         }catch(SQLException e){connection.rollback();throw e;}finally{connection.setAutoCommit(true);}
     }
@@ -321,30 +322,43 @@ final class SqliteKnowledgeStore implements AutoCloseable {
         try(PreparedStatement ps=connection.prepareStatement("""
           SELECT w.work_item_key,w.source_system,w.summary,w.description,w.acceptance_criteria,w.status,
                  s.source_url,s.source_updated_at
-          FROM work_items w JOIN work_item_sources s ON s.work_item_key=w.work_item_key WHERE w.work_item_key=?""")){
-            ps.setString(1,key);try(ResultSet rs=ps.executeQuery()){if(rs.next())return Optional.of(new WorkItem(
-              rs.getString(1),rs.getString(2),rs.getString(3),rs.getString(4),rs.getString(5),
-              rs.getString(6),rs.getString(7),rs.getString(8)));}
+          FROM work_items w JOIN work_item_sources s
+            ON s.source_system=w.source_system AND s.work_item_key=w.work_item_key
+          WHERE (w.source_system || ':' || w.work_item_key)=? OR w.work_item_key=?
+          ORDER BY w.source_system""")){
+            ps.setString(1,key);ps.setString(2,key);try(ResultSet rs=ps.executeQuery()){
+              if(rs.next()){
+                WorkItem found=new WorkItem(rs.getString(1),rs.getString(2),rs.getString(3),rs.getString(4),
+                  rs.getString(5),rs.getString(6),rs.getString(7),rs.getString(8));
+                if(rs.next())throw new IllegalArgumentException(
+                  "Ambiguous work-item key '"+key+"'; use <source-system>:"+key);
+                return Optional.of(found);
+              }
+            }
         }
         return jiraWork(key).map(j->new WorkItem(j.key(),"jira",j.summary(),j.description(),
           j.acceptanceCriteria(),null,j.sourceUrl(),j.sourceUpdatedAt()));
     }
     List<String> workItemEvidence(String key,int limit)throws SQLException{
+        if(limit<1)throw new IllegalArgumentException("limit must be positive");
         WorkItem item=requiredWorkItem(key);String query=ftsQuery(item.searchableText());
         return query.isBlank()?List.of():blastRadius(query,limit);
     }
     List<String> relatedWorkItems(String key,int limit)throws SQLException{
+        if(limit<1)throw new IllegalArgumentException("limit must be positive");
         WorkItem item=requiredWorkItem(key);String query=ftsQuery(item.searchableText());
         return query.isBlank()?List.of():relatedJiras(query,limit);
     }
     List<String> workItemDependencies(String key,int limit)throws SQLException{
+        if(limit<1)throw new IllegalArgumentException("limit must be positive");
         WorkItem item=requiredWorkItem(key);String query=ftsQuery(item.searchableText());
         if(query.isBlank())return List.of();List<String> rows=new ArrayList<>();
         try(PreparedStatement ps=connection.prepareStatement("""
           WITH seeds AS (SELECT rowid FROM knowledge_fts WHERE knowledge_fts MATCH ? LIMIT ?)
           SELECT DISTINCT source.name,sk.kind,sk.name,coalesce(target.name,'unresolved'),
             coalesce(tk.kind,'repository'),coalesce(tk.name,e.artifact_name),e.dependency_type,
-            e.evidence,sk.source_path,sk.commit_sha
+            e.evidence,sk.source_path,sk.commit_sha,
+            coalesce(tk.source_path,'unresolved'),coalesce(tk.commit_sha,'unresolved')
           FROM seeds s JOIN dependency_edges e ON e.source_knowledge_id=s.rowid OR e.target_knowledge_id=s.rowid
           JOIN repositories source ON source.id=e.source_repository_id
           JOIN knowledge sk ON sk.id=e.source_knowledge_id
@@ -353,9 +367,10 @@ final class SqliteKnowledgeStore implements AutoCloseable {
           ORDER BY source.name,e.dependency_type,e.artifact_name LIMIT ?""")){
             ps.setString(1,query);ps.setInt(2,limit);ps.setInt(3,limit);
             try(ResultSet rs=ps.executeQuery()){while(rs.next())rows.add(
-              "%s [%s %s] -> %s [%s %s] via %s%n  Evidence: %s at %s @ %s".formatted(
+              "%s [%s %s] -> %s [%s %s] via %s%n  Evidence: %s%n  Source: %s @ %s%n  Target: %s @ %s".formatted(
                rs.getString(1),rs.getString(2),rs.getString(3),rs.getString(4),rs.getString(5),
-               rs.getString(6),rs.getString(7),rs.getString(8),rs.getString(9),rs.getString(10)));
+               rs.getString(6),rs.getString(7),rs.getString(8),rs.getString(9),rs.getString(10),
+               rs.getString(11),rs.getString(12)));
             }
         }return rows;
     }
