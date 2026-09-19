@@ -52,13 +52,15 @@ final class ImplementationValidationService {
  }
 
  static boolean isTest(String path){
-  String p=path.replace('\\','/').toLowerCase(Locale.ROOT);
+  String normalized=path.replace('\\','/');
+  String p=normalized.toLowerCase(Locale.ROOT);
   String file=p.substring(p.lastIndexOf('/')+1);
+  String originalFile=normalized.substring(normalized.lastIndexOf('/')+1);
   return p.startsWith("test/")||p.startsWith("tests/")||p.startsWith("spec/")||p.startsWith("specs/")||
    p.contains("/test/")||p.contains("/tests/")||p.contains("/spec/")||p.contains("/specs/")||
    p.contains("/__tests__/")||p.startsWith("__tests__/")||file.startsWith("test_")||
    file.contains("_test.")||file.contains(".test.")||file.contains(".spec.")||
-   file.endsWith("test.java")||file.endsWith("tests.java");
+   originalFile.endsWith("Test.java")||originalFile.endsWith("Tests.java");
  }
  private static String provenance(GitChange c){
   String paths=c.previousPath()==null?c.path():c.previousPath()+" -> "+c.path();
