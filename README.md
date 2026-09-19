@@ -156,6 +156,114 @@ java -jar "$AF_JAR" history-index \
 
 Authentication and cloning stay outside the indexer, preventing credentials from entering the knowledge database.
 
+## Windows PowerShell quick start
+
+Run these commands from the `agent-framework` repository root in PowerShell 7 or Windows PowerShell 5.1. Java 21+, Maven, and Git must be available on `PATH`.
+
+### 1. Build and configure paths
+
+```powershell
+mvn --batch-mode clean verify
+
+$AfJar = (Resolve-Path ".\target\agent-framework-0.1.0-SNAPSHOT.jar").Path
+$AfDb = Join-Path $PWD ".agent\context.db"
+$AfConfig = Join-Path $PWD "config\repositories.json"
+```
+
+### 2. Configure and index repositories
+
+```powershell
+Copy-Item ".\config\repositories.example.json" $AfConfig
+notepad $AfConfig
+
+java -jar $AfJar init --db $AfDb
+java -jar $AfJar index --db $AfDb --config $AfConfig
+java -jar $AfJar history-index --db $AfDb --config $AfConfig
+java -jar $AfJar dependencies --db $AfDb
+```
+
+Use absolute Windows paths in the JSON configuration. Backslashes must be escaped, for example `C:\\source\\order-service`, or use forward slashes such as `C:/source/order-service`.
+
+### 3. Search and explain current behavior
+
+```powershell
+java -jar $AfJar search --db $AfDb "rollback deployment status"
+java -jar $AfJar blast-radius --db $AfDb "deployment"
+java -jar $AfJar related-jiras --db $AfDb "mapper validation status"
+
+java -jar $AfJar explain `
+  --db $AfDb `
+  --format json `
+  --limit 25 `
+  "How does preorder work currently?" |
+  Set-Content -Encoding utf8 ".\preorder-context.json"
+```
+
+### 4. Import and analyze a work item
+
+```powershell
+Copy-Item ".\examples\work-item.json" ".\PROJECT-1234.json"
+notepad ".\PROJECT-1234.json"
+
+java -jar $AfJar work-item-import `
+  --db $AfDb `
+  --file ".\PROJECT-1234.json"
+
+java -jar $AfJar analyze-work-item `
+  --db $AfDb `
+  --format json `
+  "PROJECT-1234" |
+  Set-Content -Encoding utf8 ".\PROJECT-1234-analysis.json"
+
+java -jar $AfJar plan-work-item `
+  --db $AfDb `
+  --format markdown `
+  --output ".\PROJECT-1234-plan.md" `
+  "PROJECT-1234"
+```
+
+Fetch a GitHub issue with `curl.exe` so PowerShell does not substitute its web-request alias:
+
+```powershell
+curl.exe --fail-with-body --location `
+  --header "Authorization: Bearer $env:GITHUB_TOKEN" `
+  --header "Accept: application/vnd.github+json" `
+  "https://api.github.com/repos/acme/payments/issues/42" `
+  --output ".\github-42.json"
+
+java -jar $AfJar work-item-import `
+  --db $AfDb `
+  --adapter github `
+  --source-uri "https://api.github.com/repos/acme/payments/issues/42" `
+  --file ".\github-42.json"
+```
+
+### 5. Validate and review committed changes
+
+```powershell
+java -jar $AfJar validate-work-item `
+  --db $AfDb `
+  --head HEAD `
+  --format json `
+  "PROJECT-1234" |
+  Set-Content -Encoding utf8 ".\PROJECT-1234-validation.json"
+
+java -jar $AfJar review-work-item `
+  --db $AfDb `
+  --head HEAD `
+  --format markdown `
+  --output ".\PROJECT-1234-review.md" `
+  "PROJECT-1234"
+```
+
+### 6. Run the Windows packaged smoke test
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\scripts\smoke-test.ps1" -JarPath $AfJar
+```
+
+The script uses temporary clean Git repositories and removes them afterward.
+
 See [docs/architecture.md](docs/architecture.md) and [AGENTS.md](AGENTS.md).
 
 
@@ -383,6 +491,27 @@ Tagged releases publish `io.capstead:agent-framework:<version>` to GitHub Packag
 ```
 
 The executable JAR remains the simplest installation for CLI usage.
+
+Windows PowerShell release verification:
+
+```powershell
+$AfVersion = "0.1.0"
+$Release = "https://github.com/satya-anguluri/agent-framework/releases/download/v$AfVersion"
+$InstallDir = Join-Path $env:LOCALAPPDATA "AgentFramework"
+New-Item -ItemType Directory -Force $InstallDir | Out-Null
+
+curl.exe --fail-with-body --location `
+  --output (Join-Path $InstallDir "agent-framework-$AfVersion.jar") `
+  "$Release/agent-framework-$AfVersion.jar"
+curl.exe --fail-with-body --location `
+  --output (Join-Path $InstallDir "agent-framework-$AfVersion.jar.sha256") `
+  "$Release/agent-framework-$AfVersion.jar.sha256"
+
+$Expected = ((Get-Content (Join-Path $InstallDir "agent-framework-$AfVersion.jar.sha256")) -split '\s+')[0].ToLowerInvariant()
+$Actual = (Get-FileHash -Algorithm SHA256 (Join-Path $InstallDir "agent-framework-$AfVersion.jar")).Hash.ToLowerInvariant()
+if ($Expected -ne $Actual) { throw "Checksum verification failed." }
+java -jar (Join-Path $InstallDir "agent-framework-$AfVersion.jar") --help
+```
 
 ## Release process
 

@@ -142,7 +142,7 @@ final class SqliteKnowledgeStore implements AutoCloseable {
         List<AnalysisEvidence> rows=new ArrayList<>();
         try(PreparedStatement ps=connection.prepareStatement("""
           SELECT r.name,k.kind,k.name,k.source_path,k.line_start,k.commit_sha,
-                 substr(replace(k.content,char(10),' '),1,320)
+                 'Indexed '||k.kind||' named '||k.name
           FROM knowledge_fts f JOIN knowledge k ON k.id=f.rowid
           JOIN repositories r ON r.id=k.repository_id
           WHERE knowledge_fts MATCH ?

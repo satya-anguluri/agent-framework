@@ -29,6 +29,8 @@ class ContextQueryServiceTest {
    assertEquals(3,bundle.observedEvidence().size());
    assertTrue(bundle.observedEvidence().stream().allMatch(e->e.commitSha().equals(sha)));
    assertTrue(bundle.observedEvidence().stream().anyMatch(e->e.name().contains("PreOrder")));
+   assertTrue(bundle.observedEvidence().stream().allMatch(e->e.detail().startsWith("Indexed ")));
+   assertTrue(bundle.observedEvidence().stream().noneMatch(e->e.detail().contains("workflow")));
    assertThrows(IllegalArgumentException.class,()->service.explain(" ",2));
    assertThrows(IllegalArgumentException.class,()->service.explain("preorder",101));
    assertTrue(service.explain("unfindableterm",10).observedEvidence().isEmpty());
@@ -52,7 +54,19 @@ class ContextQueryServiceTest {
   assertEquals(2,lines.length);
   assertTrue(lines[0].contains("\"ready\":true"));
   assertTrue(lines[1].contains("\"PreOrderService\""));
+  assertTrue(lines[1].contains("\"id\":\"2\""));
   assertFalse(lines[1].contains(root.toAbsolutePath().toString()));
+ }
+
+ @Test void protocolPreservesNumericIds()throws Exception{
+  initRepository();String sha=GitSupport.head(root);Path db=root.resolve("numeric-id.db");
+  try(var store=new SqliteKnowledgeStore(db)){
+   store.initialize();store.replaceRepository("marketplace",root,"main",sha,List.of(
+    new KnowledgeItem("java-type","PreOrderService","sensitive raw source","PreOrderService.java",1,2,sha)));
+  }
+  var output=new ByteArrayOutputStream();new AgentProtocolServer(db).run(new ByteArrayInputStream(
+    "{\"id\":7,\"method\":\"health\"}\n".getBytes(StandardCharsets.UTF_8)),output);
+  assertTrue(output.toString(StandardCharsets.UTF_8).contains("\"id\":7"));
  }
 
  @Test void protocolRefusesStaleIndex()throws Exception{
@@ -88,6 +102,22 @@ class ContextQueryServiceTest {
   assertTrue(lines[1].contains("\"explain_context\""));
   assertTrue(lines[2].contains("\"structuredContent\""));
   assertTrue(lines[2].contains("\"PreOrderService\""));
+ }
+
+ @Test void mcpErrorsRetainRequestId()throws Exception{
+  initRepository();String sha=GitSupport.head(root);Path db=root.resolve("mcp-error.db");
+  try(var store=new SqliteKnowledgeStore(db)){
+   store.initialize();store.replaceRepository("marketplace",root,"main",sha,List.of());
+  }
+  String requests="""
+    {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}
+    {"jsonrpc":"2.0","method":"notifications/initialized"}
+    {"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"explain_context","arguments":{"question":" ","limit":10}}}
+    """;
+  var output=new ByteArrayOutputStream();new McpServer(db).run(
+    new ByteArrayInputStream(requests.getBytes(StandardCharsets.UTF_8)),output);
+  String last=output.toString(StandardCharsets.UTF_8).strip().split("\\R")[1];
+  assertTrue(last.contains("\"id\":9"));
  }
 
  private void initRepository()throws Exception{

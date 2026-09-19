@@ -28,9 +28,9 @@ final class AgentProtocolServer {
         }catch(com.fasterxml.jackson.core.JsonProcessingException e){
           response=error(null,"INVALID_JSON","Request must be one JSON object on a single line.");
         }catch(IllegalArgumentException e){
-          response=error(request==null?null:text(request,"id"),"INVALID_REQUEST",e.getMessage());
+          response=error(request==null?null:request.get("id"),"INVALID_REQUEST",e.getMessage());
         }catch(Exception e){
-          response=error(request==null?null:text(request,"id"),"INTERNAL_ERROR","Unable to process the request.");
+          response=error(request==null?null:request.get("id"),"INTERNAL_ERROR","Unable to process the request.");
         }
         writer.write(mapper.writeValueAsString(response));writer.newLine();writer.flush();
       }
@@ -38,7 +38,7 @@ final class AgentProtocolServer {
   }
 
   private Map<String,Object> handle(JsonNode request)throws Exception{
-    String id=text(request,"id"),method=text(request,"method");
+    JsonNode id=request.get("id");String method=text(request,"method");
     if(method==null||method.isBlank())return error(id,"INVALID_REQUEST","method is required");
     try(var store=new SqliteKnowledgeStore(db)){
       store.initialize();
@@ -55,11 +55,11 @@ final class AgentProtocolServer {
     }
   }
 
-  private Map<String,Object> success(String id,Object result){
+  private Map<String,Object> success(JsonNode id,Object result){
     var response=new LinkedHashMap<String,Object>();response.put("id",id);response.put("ok",true);
     response.put("result",result);return response;
   }
-  private Map<String,Object> error(String id,String code,String message){
+  private Map<String,Object> error(JsonNode id,String code,String message){
     var detail=new LinkedHashMap<String,Object>();detail.put("code",code);detail.put("message",message);
     var response=new LinkedHashMap<String,Object>();response.put("id",id);response.put("ok",false);
     response.put("error",detail);return response;

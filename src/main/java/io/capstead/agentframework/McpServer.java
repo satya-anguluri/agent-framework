@@ -22,13 +22,13 @@ final class McpServer {
       String line;
       while((line=reader.readLine())!=null){
         if(line.isBlank())continue;
-        Map<String,Object> response;
+        Map<String,Object> response;JsonNode request=null;
         try{
-          JsonNode request=mapper.readTree(line);
+          request=mapper.readTree(line);
           response=handle(request);
         }catch(JsonProcessingException e){response=error(null,-32700,"Parse error");}
-        catch(IllegalArgumentException e){response=error(null,-32602,e.getMessage());}
-        catch(Exception e){response=error(null,-32603,"Internal error");}
+        catch(IllegalArgumentException e){response=error(request==null?null:request.get("id"),-32602,e.getMessage());}
+        catch(Exception e){response=error(request==null?null:request.get("id"),-32603,"Internal error");}
         if(response!=null){writer.write(mapper.writeValueAsString(response));writer.newLine();writer.flush();}
       }
     }

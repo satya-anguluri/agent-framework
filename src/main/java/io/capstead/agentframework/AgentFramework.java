@@ -342,9 +342,11 @@ public class AgentFramework implements Runnable{
   System.out.println("\nDETERMINISTIC RELATIONSHIPS");
   if(bundle.deterministicRelationships().isEmpty())System.out.println("No deterministic relationships matched.");
   else bundle.deterministicRelationships().forEach(row->System.out.printf(
-    "- %s [%s %s] -> %s [%s %s] via %s%n  Evidence: %s%n",
+    "- %s [%s %s] -> %s [%s %s] via %s%n  Evidence: %s%n  Source: %s:%s @ %s%n  Target: %s:%s @ %s%n",
     row.sourceRepository(),row.sourceKind(),row.sourceName(),row.targetRepository(),row.targetKind(),
-    row.targetName(),row.type(),row.evidence()));
+    row.targetName(),row.type(),row.evidence(),row.sourcePath(),row.sourceLine()==null?"-":row.sourceLine(),
+    row.sourceCommit(),java.util.Objects.toString(row.targetPath(),"unresolved"),
+    row.targetLine()==null?"-":row.targetLine(),java.util.Objects.toString(row.targetCommit(),"unresolved")));
   System.out.println("\nLIMITATIONS");bundle.limitations().forEach(item->System.out.println("- "+item));
  }
 
