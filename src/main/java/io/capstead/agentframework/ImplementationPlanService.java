@@ -14,7 +14,7 @@ final class ImplementationPlanService {
   });
   List<String> order=new ArrayList<>();
   if(report.resolvedDependencies().isEmpty())order.add("No deterministic cross-repository edge was resolved; confirm whether repositories can deploy independently.");
-  else for(String edge:report.resolvedDependencies())order.add("Confirm compatibility and rollout direction before ordering: "+edge.lines().findFirst().orElse(edge));
+  else for(String edge:report.resolvedDependencies())order.add("Confirm compatibility and rollout direction before ordering: "+edge);
   List<String> assumptions=new ArrayList<>();
   assumptions.add("Every cited artifact is a candidate for inspection, not a declaration that it must change.");
   assumptions.add("Acceptance criteria are complete and represent the current requested behavior.");
