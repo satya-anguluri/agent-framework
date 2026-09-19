@@ -16,4 +16,4 @@ Build a reusable cross-repository context layer for any software project. Reposi
 - Built-ins are adapters, not core assumptions.
 - Discover additional extractors with Java `ServiceLoader`.
 - Project topology comes only from configuration and deterministic evidence.
-- Jira is the first work-item adapter; repository and history features remain tracker-neutral.
+- Work items use a tracker-neutral contract; Jira, Linear, GitHub Issues, and internal systems are adapters.

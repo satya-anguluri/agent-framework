@@ -3,6 +3,7 @@ package io.capstead.agentframework;
 import io.capstead.agentframework.model.KnowledgeItem;
 import io.capstead.agentframework.model.JiraWorkItem;
 import io.capstead.agentframework.model.HistoryCommit;
+import io.capstead.agentframework.model.WorkItem;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -293,6 +294,73 @@ final class SqliteKnowledgeStore implements AutoCloseable {
               rs.getString(1),rs.getString(2),rs.getString(3),rs.getString(4),rs.getString(5),
               rs.getString(6),rs.getString(7),rs.getString(8),rs.getString(9),rs.getString(10)));
         }return rows;
+    }
+
+    void upsertWorkItem(WorkItem item)throws SQLException{
+        connection.setAutoCommit(false);
+        try{
+            try(PreparedStatement ps=connection.prepareStatement("""
+              INSERT INTO work_items(work_item_key,source_system,summary,description,acceptance_criteria,status,updated_at)
+              VALUES(?,?,?,?,?,?,?) ON CONFLICT(work_item_key) DO UPDATE SET source_system=excluded.source_system,
+              summary=excluded.summary,description=excluded.description,acceptance_criteria=excluded.acceptance_criteria,
+              status=excluded.status,updated_at=excluded.updated_at""")){
+                ps.setString(1,item.key());ps.setString(2,item.sourceSystem());ps.setString(3,item.summary());
+                ps.setString(4,item.description());ps.setString(5,item.acceptanceCriteria());ps.setString(6,item.status());
+                ps.setString(7,Instant.now().toString());ps.executeUpdate();
+            }
+            try(PreparedStatement ps=connection.prepareStatement("""
+              INSERT INTO work_item_sources(work_item_key,source_url,source_updated_at,imported_at) VALUES(?,?,?,?)
+              ON CONFLICT(work_item_key) DO UPDATE SET source_url=excluded.source_url,
+              source_updated_at=excluded.source_updated_at,imported_at=excluded.imported_at""")){
+                ps.setString(1,item.key());ps.setString(2,item.sourceUrl());ps.setString(3,item.sourceUpdatedAt());
+                ps.setString(4,Instant.now().toString());ps.executeUpdate();
+            }connection.commit();
+        }catch(SQLException e){connection.rollback();throw e;}finally{connection.setAutoCommit(true);}
+    }
+    Optional<WorkItem> workItem(String key)throws SQLException{
+        try(PreparedStatement ps=connection.prepareStatement("""
+          SELECT w.work_item_key,w.source_system,w.summary,w.description,w.acceptance_criteria,w.status,
+                 s.source_url,s.source_updated_at
+          FROM work_items w JOIN work_item_sources s ON s.work_item_key=w.work_item_key WHERE w.work_item_key=?""")){
+            ps.setString(1,key);try(ResultSet rs=ps.executeQuery()){if(rs.next())return Optional.of(new WorkItem(
+              rs.getString(1),rs.getString(2),rs.getString(3),rs.getString(4),rs.getString(5),
+              rs.getString(6),rs.getString(7),rs.getString(8)));}
+        }
+        return jiraWork(key).map(j->new WorkItem(j.key(),"jira",j.summary(),j.description(),
+          j.acceptanceCriteria(),null,j.sourceUrl(),j.sourceUpdatedAt()));
+    }
+    List<String> workItemEvidence(String key,int limit)throws SQLException{
+        WorkItem item=requiredWorkItem(key);String query=ftsQuery(item.searchableText());
+        return query.isBlank()?List.of():blastRadius(query,limit);
+    }
+    List<String> relatedWorkItems(String key,int limit)throws SQLException{
+        WorkItem item=requiredWorkItem(key);String query=ftsQuery(item.searchableText());
+        return query.isBlank()?List.of():relatedJiras(query,limit);
+    }
+    List<String> workItemDependencies(String key,int limit)throws SQLException{
+        WorkItem item=requiredWorkItem(key);String query=ftsQuery(item.searchableText());
+        if(query.isBlank())return List.of();List<String> rows=new ArrayList<>();
+        try(PreparedStatement ps=connection.prepareStatement("""
+          WITH seeds AS (SELECT rowid FROM knowledge_fts WHERE knowledge_fts MATCH ? LIMIT ?)
+          SELECT DISTINCT source.name,sk.kind,sk.name,coalesce(target.name,'unresolved'),
+            coalesce(tk.kind,'repository'),coalesce(tk.name,e.artifact_name),e.dependency_type,
+            e.evidence,sk.source_path,sk.commit_sha
+          FROM seeds s JOIN dependency_edges e ON e.source_knowledge_id=s.rowid OR e.target_knowledge_id=s.rowid
+          JOIN repositories source ON source.id=e.source_repository_id
+          JOIN knowledge sk ON sk.id=e.source_knowledge_id
+          LEFT JOIN repositories target ON target.id=e.target_repository_id
+          LEFT JOIN knowledge tk ON tk.id=e.target_knowledge_id
+          ORDER BY source.name,e.dependency_type,e.artifact_name LIMIT ?""")){
+            ps.setString(1,query);ps.setInt(2,limit);ps.setInt(3,limit);
+            try(ResultSet rs=ps.executeQuery()){while(rs.next())rows.add(
+              "%s [%s %s] -> %s [%s %s] via %s%n  Evidence: %s at %s @ %s".formatted(
+               rs.getString(1),rs.getString(2),rs.getString(3),rs.getString(4),rs.getString(5),
+               rs.getString(6),rs.getString(7),rs.getString(8),rs.getString(9),rs.getString(10))));
+            }
+        }return rows;
+    }
+    private WorkItem requiredWorkItem(String key)throws SQLException{
+        return workItem(key).orElseThrow(()->new IllegalArgumentException("Unknown work item: "+key));
     }
     private int countParameters(String sql){return (int)sql.chars().filter(c->c=='?').count();}
     @Override public void close()throws SQLException{connection.close();}

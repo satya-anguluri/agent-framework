@@ -74,3 +74,12 @@ CREATE TABLE IF NOT EXISTS dependency_edges (
 );
 CREATE INDEX IF NOT EXISTS idx_dependency_source ON dependency_edges(source_repository_id);
 CREATE INDEX IF NOT EXISTS idx_dependency_target ON dependency_edges(target_repository_id);
+
+CREATE TABLE IF NOT EXISTS work_items (
+ work_item_key TEXT PRIMARY KEY, source_system TEXT NOT NULL, summary TEXT NOT NULL,
+ description TEXT, acceptance_criteria TEXT, status TEXT, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS work_item_sources (
+ work_item_key TEXT PRIMARY KEY REFERENCES work_items(work_item_key) ON DELETE CASCADE,
+ source_url TEXT NOT NULL, source_updated_at TEXT, imported_at TEXT NOT NULL
+);

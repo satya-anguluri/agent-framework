@@ -5,7 +5,7 @@ Agent Framework is a project-neutral context and dependency engine.
 ## Layers
 - **Core:** repositories, provenance, SQLite/FTS, dependency graph, history lineage, staleness gates.
 - **Source adapters:** `SourceArtifactExtractor` implementations loaded through `ServiceLoader`.
-- **Work-item adapters:** normalized work items; Jira is the first adapter.
+- **Work-item adapters:** a normalized tracker-neutral contract with Jira, Linear, GitHub Issues, or internal adapters.
 - **Agent adapters:** any coding agent consumes the evidence contract.
 
 The built-in adapters recognize Java/Spring dependencies plus Helm, Kubernetes, Vault, Jenkins, GitHub Actions, Azure Pipelines, and GitLab CI structure. Configuration values, secrets, tokens, and shell bodies are excluded. Other ecosystems can be added without changing core orchestration.
