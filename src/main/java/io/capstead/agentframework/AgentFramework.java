@@ -243,9 +243,15 @@ public class AgentFramework implements Runnable{
   var analysis=new WorkItemAnalysisService(store).analyze(key,limit);
   var plan=new ImplementationPlanService().build(analysis);
   java.util.List<io.capstead.agentframework.model.GitChange> changes=new java.util.ArrayList<>();
-  for(var repository:store.repositoryStates())
-   changes.addAll(GitSupport.changedFiles(repository.name(),repository.root(),repository.indexedCommit(),head));
-  return new ImplementationValidationService().validate(plan,changes);
+  java.util.List<io.capstead.agentframework.model.RepositoryComparison> comparisons=new java.util.ArrayList<>();
+  for(var repository:store.repositoryStates()){
+   GitSupport.requireClean(repository.root());
+   String headCommit=GitSupport.resolveCommit(repository.root(),head);
+   comparisons.add(new io.capstead.agentframework.model.RepositoryComparison(
+    repository.name(),repository.indexedCommit(),headCommit));
+   changes.addAll(GitSupport.changedFiles(repository.name(),repository.root(),repository.indexedCommit(),headCommit));
+  }
+  return new ImplementationValidationService().validate(plan,changes,comparisons);
  }
 
  private static void printValidation(io.capstead.agentframework.model.ImplementationValidationReport report){
