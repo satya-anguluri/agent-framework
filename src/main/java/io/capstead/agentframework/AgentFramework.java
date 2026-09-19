@@ -147,13 +147,44 @@ public class AgentFramework implements Runnable{
   @Parameters(index="0",description="Work-item key")String key;
   public Integer call()throws Exception{try(var store=new SqliteKnowledgeStore(db)){store.initialize();var item=store.workItem(key);if(item.isEmpty()){System.err.println("Work item not found: "+key);return 2;}System.out.println(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(item.get()));}return 0;}
  }
- @Command(name="analyze-work-item",description="Analyze a work item against current indexed evidence")
+ @Command(name="analyze-work-item",description="Generate a unified, provenance-first work-item analysis")
  static class AnalyzeWorkItem extends DbCommand implements Callable<Integer>{
   @Parameters(index="0",description="Work-item key")String key;
   @Option(names="--limit",defaultValue="25")int limit;
-  public Integer call()throws Exception{if(limit<1){System.err.println("--limit must be positive");return 2;}try(var store=new SqliteKnowledgeStore(db)){store.initialize();if(!verifyCurrent(store))return 2;var item=store.workItem(key);if(item.isEmpty()){System.err.println("Work item not found: "+key);return 2;}System.out.println("WORK ITEM");System.out.println(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(item.get()));section("OBSERVED CURRENT EVIDENCE",store.workItemEvidence(key,limit));section("RESOLVED DEPENDENCY EDGES",store.workItemDependencies(key,limit));section("RELATED HISTORICAL WORK ITEMS",store.relatedWorkItems(key,limit));System.out.println("\nREQUIRED VERIFICATION (NOT DIAGNOSIS)");System.out.println("- Confirm cited files and tests still implement the intended behavior.");System.out.println("- Verify API and message contracts, database compatibility, and consumers.");System.out.println("- Check Helm values/templates, application configuration, Vault references, Jenkinsfiles, and CI/CD pipelines.");System.out.println("- Define rollout, compatibility, observability, and rollback requirements.");System.out.println("- Resolve assumptions against the current acceptance criteria before implementation.");}return 0;}
+  @Option(names="--format",defaultValue="text",description="Output format: text or json")String format;
+  public Integer call()throws Exception{
+   if(limit<1){System.err.println("--limit must be positive");return 2;}
+   if(!format.equals("text")&&!format.equals("json")){System.err.println("--format must be text or json");return 2;}
+   try(var store=new SqliteKnowledgeStore(db)){
+    store.initialize();if(!verifyCurrent(store))return 2;
+    try{
+     var report=new WorkItemAnalysisService(store).analyze(key,limit);
+     if(format.equals("json"))System.out.println(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(report));
+     else printUnifiedReport(report);
+    }catch(IllegalArgumentException e){System.err.println(e.getMessage());return 2;}
+   }return 0;
+  }
  }
- private static void section(String title,java.util.List<String> rows){System.out.println("\n"+title);if(rows.isEmpty())System.out.println("No matching indexed evidence found.");else rows.forEach(System.out::println);}
+ private static void printUnifiedReport(io.capstead.agentframework.model.UnifiedAnalysisReport report)throws Exception{
+  System.out.println("WORK ITEM");
+  System.out.println(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(report.workItem()));
+  System.out.println("\nOBSERVED CURRENT EVIDENCE");
+  if(report.observedEvidence().isEmpty())System.out.println("No matching indexed evidence found.");
+  else report.observedEvidence().forEach((category,rows)->{
+   System.out.println("\n"+category);
+   rows.forEach(row->System.out.printf("%s | %s | %s | %s:%s | %s%n  %s%n",
+    row.repository(),row.kind(),row.name(),row.sourcePath(),
+    row.lineStart()==null?"-":row.lineStart(),row.commitSha(),row.detail()));
+  });
+  printRows("RESOLVED DEPENDENCY EDGES",report.resolvedDependencies());
+  printRows("RELATED HISTORICAL JIRA CONTEXT",report.relatedHistoricalJiraContext());
+  printRows("REQUIRED VERIFICATION (NOT DIAGNOSIS)",report.requiredVerification());
+  printRows("ROLLOUT AND ROLLBACK CHECKS",report.rolloutAndRollbackChecks());
+ }
+ private static void printRows(String title,java.util.List<String> rows){
+  System.out.println("\n"+title);
+  if(rows.isEmpty())System.out.println("No matching evidence found.");else rows.forEach(row->System.out.println("- "+row));
+ }
 
  private static void printBlastRadius(java.util.List<String> rows){
   System.out.println("OBSERVED MATCHES AND DETERMINISTIC RELATIONSHIPS");

@@ -4,6 +4,9 @@ import io.capstead.agentframework.model.KnowledgeItem;
 import io.capstead.agentframework.model.JiraWorkItem;
 import io.capstead.agentframework.model.HistoryCommit;
 import io.capstead.agentframework.model.WorkItem;
+import io.capstead.agentframework.model.AnalysisEvidence;
+import io.capstead.agentframework.model.AnalysisCategory;
+import io.capstead.agentframework.extract.AnalysisCategoryRegistry;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -13,6 +16,7 @@ import java.util.*;
 
 final class SqliteKnowledgeStore implements AutoCloseable {
     record RepositoryState(String name, Path root, String indexedCommit) {}
+    private static final AnalysisCategoryRegistry CATEGORY_REGISTRY=new AnalysisCategoryRegistry();
     private final Connection connection;
 
     SqliteKnowledgeStore(Path db) throws SQLException, IOException {
@@ -339,6 +343,38 @@ final class SqliteKnowledgeStore implements AutoCloseable {
         return jiraWork(key).map(j->new WorkItem(j.key(),"jira",j.summary(),j.description(),
           j.acceptanceCriteria(),null,j.sourceUrl(),j.sourceUpdatedAt()));
     }
+    List<AnalysisEvidence> workItemEvidenceDetails(String key,int limit)throws SQLException{
+        if(limit<1)throw new IllegalArgumentException("limit must be positive");
+        WorkItem item=requiredWorkItem(key);String query=ftsQuery(item.searchableText());
+        if(query.isBlank())return List.of();
+        List<AnalysisEvidence> rows=new ArrayList<>();
+        try(PreparedStatement ps=connection.prepareStatement("""
+          WITH seeds AS (
+            SELECT rowid FROM knowledge_fts WHERE knowledge_fts MATCH ?
+            ORDER BY bm25(knowledge_fts) LIMIT ?
+          ), expanded AS (
+            SELECT k.id FROM knowledge k JOIN seeds s ON s.rowid=k.id
+            UNION
+            SELECT target.id FROM seeds s JOIN relationships rel ON rel.source_knowledge_id=s.rowid
+            JOIN knowledge source ON source.id=s.rowid
+            JOIN knowledge target ON target.kind=rel.target_kind AND lower(target.name)=lower(rel.target_name)
+            WHERE target.id<>source.id
+          )
+          SELECT DISTINCT r.name,k.kind,k.name,k.source_path,k.line_start,k.commit_sha,
+            substr(replace(k.content,char(10),' '),1,240)
+          FROM expanded e JOIN knowledge k ON k.id=e.id JOIN repositories r ON r.id=k.repository_id
+          ORDER BY r.name,k.source_path,k.line_start,k.kind,k.name LIMIT ?""")){
+            ps.setString(1,query);ps.setInt(2,limit);ps.setInt(3,limit);
+            try(ResultSet rs=ps.executeQuery()){while(rs.next()){
+                String kind=rs.getString(2),path=rs.getString(4);
+                Number line=(Number)rs.getObject(5);
+                rows.add(new AnalysisEvidence(CATEGORY_REGISTRY.classify(kind,path),rs.getString(1),kind,
+                  rs.getString(3),path,line==null?null:line.intValue(),rs.getString(6),rs.getString(7)));
+            }}
+        }
+        return List.copyOf(rows);
+    }
+
     List<String> workItemEvidence(String key,int limit)throws SQLException{
         if(limit<1)throw new IllegalArgumentException("limit must be positive");
         WorkItem item=requiredWorkItem(key);String query=ftsQuery(item.searchableText());
@@ -354,7 +390,7 @@ final class SqliteKnowledgeStore implements AutoCloseable {
         WorkItem item=requiredWorkItem(key);String query=ftsQuery(item.searchableText());
         if(query.isBlank())return List.of();List<String> rows=new ArrayList<>();
         try(PreparedStatement ps=connection.prepareStatement("""
-          WITH seeds AS (SELECT rowid FROM knowledge_fts WHERE knowledge_fts MATCH ? LIMIT ?)
+          WITH seeds AS (SELECT rowid FROM knowledge_fts WHERE knowledge_fts MATCH ? ORDER BY bm25(knowledge_fts) LIMIT ?)
           SELECT DISTINCT source.name,sk.kind,sk.name,coalesce(target.name,'unresolved'),
             coalesce(tk.kind,'repository'),coalesce(tk.name,e.artifact_name),e.dependency_type,
             e.evidence,sk.source_path,sk.commit_sha,

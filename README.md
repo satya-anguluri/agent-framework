@@ -172,10 +172,21 @@ The normalized contract supports Jira, Linear, GitHub Issues, and internal track
 cp examples/work-item.json /tmp/PROJECT-1234.json
 ${EDITOR:-vi} /tmp/PROJECT-1234.json
 java -jar "$AF_JAR" work-item-import --db "$AF_DB" --file /tmp/PROJECT-1234.json
-java -jar "$AF_JAR" analyze-work-item --db "$AF_DB" PROJECT-1234
+
+java -jar "$AF_JAR" analyze-work-item \
+  --db "$AF_DB" \
+  --limit 50 \
+  PROJECT-1234
+
+java -jar "$AF_JAR" analyze-work-item \
+  --db "$AF_DB" \
+  --format json \
+  PROJECT-1234 > /tmp/PROJECT-1234-analysis.json
 ```
 
-The report combines current code, dependencies, configuration, delivery artifacts, and relevant history. It reports required verification separately from observed facts.
+The deterministic report groups observed evidence into code, APIs/messages, data, Helm/Kubernetes, application configuration, Vault, CI/CD, tests, and other evidence. Every observation retains repository, path, line, and commit provenance. Resolved cross-repository dependencies and optional historical Jira context are separate sections. Jira is named explicitly because Git history currently records Jira keys; other tracker-history providers can be added independently.
+
+Required verification and rollout/rollback checks are derived only from the evidence categories present. They remain checklists—not diagnoses or claims that a file must change.
 
 
 ## Import tracker payloads through adapters
@@ -244,3 +255,8 @@ Jira custom-field IDs are instance-specific. Set `acceptanceField` to the field 
 All stored provenance URLs have user information, query parameters, and fragments removed before persistence.
 
 Additional trackers can implement `WorkItemAdapter` and register the implementation with Java `ServiceLoader`; no analysis-engine changes are required.
+
+
+### Extending analysis categories
+
+Custom extractors can also provide an `EvidenceCategoryResolver` through Java `ServiceLoader`. External resolvers run before the built-in mappings, allowing new artifact kinds to participate in verification and rollout sections without modifying the framework core.
