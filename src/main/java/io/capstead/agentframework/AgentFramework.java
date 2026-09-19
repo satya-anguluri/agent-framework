@@ -20,7 +20,7 @@ import java.util.*;
  AgentFramework.JiraBlastRadius.class,AgentFramework.HistoryIndex.class,AgentFramework.JiraHistory.class,
  AgentFramework.RelatedJiras.class,AgentFramework.Dependencies.class,
  AgentFramework.WorkItemImport.class,AgentFramework.WorkItemShow.class,AgentFramework.AnalyzeWorkItem.class,
- AgentFramework.PlanWorkItem.class,AgentFramework.ValidateWorkItem.class})
+ AgentFramework.PlanWorkItem.class,AgentFramework.ValidateWorkItem.class,AgentFramework.ReviewWorkItem.class})
 public class AgentFramework implements Runnable{
  public static void main(String[]args){System.exit(new CommandLine(new AgentFramework()).execute(args));}
  public void run(){CommandLine.usage(this,System.out);}
@@ -205,17 +205,53 @@ public class AgentFramework implements Runnable{
    try(var store=new SqliteKnowledgeStore(db)){
     store.initialize();
     try{
-     var analysis=new WorkItemAnalysisService(store).analyze(key,limit);
-     var plan=new ImplementationPlanService().build(analysis);
-     java.util.List<io.capstead.agentframework.model.GitChange> changes=new java.util.ArrayList<>();
-     for(var repository:store.repositoryStates())
-      changes.addAll(GitSupport.changedFiles(repository.name(),repository.root(),repository.indexedCommit(),head));
-     var validation=new ImplementationValidationService().validate(plan,changes);
+     var validation=buildValidation(store,key,limit,head);
      if(format.equals("json"))System.out.println(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(validation));
      else printValidation(validation);
     }catch(IllegalArgumentException e){System.err.println(e.getMessage());return 2;}
    }return 0;
   }
+ }
+
+ @Command(name="review-work-item",description="Export a pull-request review artifact without posting it")
+ static class ReviewWorkItem extends DbCommand implements Callable<Integer>{
+  @Parameters(index="0",description="Work-item key")String key;
+  @Option(names="--head",defaultValue="HEAD",description="Git head revision in each indexed repository")String head;
+  @Option(names="--limit",defaultValue="50")int limit;
+  @Option(names="--format",defaultValue="markdown",description="Output format: markdown or json")String format;
+  @Option(names="--output",description="Optional output file; stdout when omitted")Path output;
+  public Integer call()throws Exception{
+   if(limit<1){System.err.println("--limit must be positive");return 2;}
+   if(!format.equals("markdown")&&!format.equals("json")){System.err.println("--format must be markdown or json");return 2;}
+   try(var store=new SqliteKnowledgeStore(db)){
+    store.initialize();
+    try{
+     var validation=buildValidation(store,key,limit,head);
+     var artifact=new PullRequestReviewService().build(validation);
+     String rendered=format.equals("json")
+      ?new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(artifact)
+      :PullRequestReviewRenderer.markdown(artifact);
+     if(output==null)System.out.print(rendered);
+     else{writeOutput(output,rendered);System.out.println("Wrote pull-request review artifact to "+output.toAbsolutePath());}
+    }catch(IllegalArgumentException e){System.err.println(e.getMessage());return 2;}
+   }return 0;
+  }
+ }
+
+ private static io.capstead.agentframework.model.ImplementationValidationReport buildValidation(
+  SqliteKnowledgeStore store,String key,int limit,String head)throws Exception{
+  var analysis=new WorkItemAnalysisService(store).analyze(key,limit);
+  var plan=new ImplementationPlanService().build(analysis);
+  java.util.List<io.capstead.agentframework.model.GitChange> changes=new java.util.ArrayList<>();
+  java.util.List<io.capstead.agentframework.model.RepositoryComparison> comparisons=new java.util.ArrayList<>();
+  for(var repository:store.repositoryStates()){
+   GitSupport.requireClean(repository.root());
+   String headCommit=GitSupport.resolveCommit(repository.root(),head);
+   comparisons.add(new io.capstead.agentframework.model.RepositoryComparison(
+    repository.name(),repository.indexedCommit(),headCommit));
+   changes.addAll(GitSupport.changedFiles(repository.name(),repository.root(),repository.indexedCommit(),headCommit));
+  }
+  return new ImplementationValidationService().validate(plan,changes,comparisons);
  }
 
  private static void printValidation(io.capstead.agentframework.model.ImplementationValidationReport report){

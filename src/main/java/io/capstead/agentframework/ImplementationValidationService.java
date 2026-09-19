@@ -7,6 +7,13 @@ final class ImplementationValidationService {
  private final AnalysisCategoryRegistry categories=new AnalysisCategoryRegistry();
 
  ImplementationValidationReport validate(ImplementationPlan plan,List<GitChange> changes){
+  Map<String,RepositoryComparison> comparisons=new TreeMap<>();
+  for(GitChange change:changes)comparisons.putIfAbsent(change.repository(),
+   new RepositoryComparison(change.repository(),change.baseCommit(),change.headCommit()));
+  return validate(plan,changes,List.copyOf(comparisons.values()));
+ }
+
+ ImplementationValidationReport validate(ImplementationPlan plan,List<GitChange> changes,List<RepositoryComparison> comparisons){
   List<GitChange> immutableChanges=List.copyOf(changes);List<RequirementCheck> checks=new ArrayList<>();
   Map<String,List<GitChange>> byRepo=new TreeMap<>();
   for(GitChange change:changes)byRepo.computeIfAbsent(change.repository(),ignored->new ArrayList<>()).add(change);
@@ -43,7 +50,7 @@ final class ImplementationValidationService {
    "Semantic acceptance criteria cannot be proven from changed filenames."));
   for(String gate:plan.approvalGates())checks.add(new RequirementCheck(gate,ValidationStatus.UNVERIFIABLE,List.of(),
    "Approval must be supplied by the responsible human or external system."));
-  return new ImplementationValidationReport(plan.workItem(),immutableChanges,List.copyOf(checks),"HUMAN_REVIEW_REQUIRED",List.of(
+  return new ImplementationValidationReport(plan.workItem(),List.copyOf(comparisons),immutableChanges,List.copyOf(checks),"HUMAN_REVIEW_REQUIRED",List.of(
    "SATISFIED means objective file evidence was found; it does not prove behavioral correctness.",
    "MISSING identifies absent expected evidence, not an automatic rejection.",
    "UNVERIFIABLE requires source inspection, execution evidence, or human approval.",

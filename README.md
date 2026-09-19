@@ -307,3 +307,28 @@ The command reports committed file changes with repository and base/head commit 
 - `UNVERIFIABLE`: source inspection, execution evidence, or human approval is required.
 
 The decision is always `HUMAN_REVIEW_REQUIRED`. Validation never approves, merges, deploys, or edits the implementation. Uncommitted worktree changes are intentionally excluded from the Git comparison.
+
+
+## Export a pull-request review artifact
+
+Generate a review document after implementation validation:
+
+```bash
+java -jar "$AF_JAR" review-work-item \
+  --db "$AF_DB" \
+  --head HEAD \
+  --format markdown \
+  --output /tmp/PROJECT-1234-pr-review.md \
+  PROJECT-1234
+
+java -jar "$AF_JAR" review-work-item \
+  --db "$AF_DB" \
+  --head HEAD \
+  --format json \
+  --output /tmp/PROJECT-1234-pr-review.json \
+  PROJECT-1234
+```
+
+The artifact includes the work-item provenance, per-repository baseline/head comparison table (including repositories with no changed files), status counts, committed-change table, satisfied checks, missing evidence, unverifiable requirements, approval gates, and validation limitations. Validation requires clean worktrees so uncommitted changes cannot be silently omitted. Markdown fields are escaped before rendering.
+
+The framework only writes the requested local artifact. It does not connect to a pull-request provider, post comments, approve, merge, deploy, or modify source code.
