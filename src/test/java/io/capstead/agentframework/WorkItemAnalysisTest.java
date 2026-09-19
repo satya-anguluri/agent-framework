@@ -21,7 +21,7 @@ class WorkItemAnalysisTest{
    store.replaceRepository("producer",root,"main",sha,List.of(
     new KnowledgeItem("message-producer","kafka:orders.created","order event delivery","Producer.java",1,1,sha),
     new KnowledgeItem("db-table","orders","order event delivery","db/migration/V2__orders.sql",1,1,sha),
-    new KnowledgeItem("helm-value","payment.image","order event delivery","charts/payment/values.yaml",1,1,sha),
+    new KnowledgeItem("config-key","payment.image","order event delivery","charts/payment/values.yaml",1,1,sha),
     new KnowledgeItem("config-key","payment.timeout","order event delivery","src/main/resources/application.yml",1,1,sha),
     new KnowledgeItem("vault-path","secret/payment","order event delivery","vault/payment.hcl",1,1,sha),
     new KnowledgeItem("jenkins-stage","deploy","order event delivery","Jenkinsfile",1,1,sha)));
@@ -38,6 +38,8 @@ class WorkItemAnalysisTest{
    assertTrue(report.observedEvidence().containsKey(AnalysisCategory.CI_CD));
    assertTrue(report.requiredVerification().stream().anyMatch(v->v.contains("Vault")));
    assertTrue(report.rolloutAndRollbackChecks().stream().anyMatch(v->v.contains("rollback")));
+   assertThrows(UnsupportedOperationException.class,()->report.resolvedDependencies().add("mutable"));
+   assertNotNull(report.observedEvidence().values().iterator().next().getFirst().lineStart());
   }
  }
  @Test void acceptsTrackerNeutralKeys(){
