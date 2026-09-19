@@ -30,7 +30,8 @@ final class GitSupport {
             String[] fields=line.split("\\t");
             if(fields.length<2)throw new IOException("Unexpected git diff row for "+root+": "+line);
             String status=fields[0],path=fields[fields.length-1];
-            changes.add(new GitChange(repository,status,path,baseCommit,headCommit));
+            String previousPath=(status.startsWith("R")||status.startsWith("C"))&&fields.length>=3?fields[1]:null;
+            changes.add(new GitChange(repository,status,path,previousPath,baseCommit,headCommit));
         }
         return List.copyOf(changes);
     }
