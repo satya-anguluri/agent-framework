@@ -64,6 +64,16 @@ class WorkItemAnalysisTest{
    assertTrue(validation.requirementChecks().stream().anyMatch(c->c.status()==ValidationStatus.UNVERIFIABLE));
    assertFalse(validation.requirementChecks().stream().anyMatch(c->c.status()==ValidationStatus.MISSING));
    assertThrows(UnsupportedOperationException.class,()->validation.observedChanges().add(null));
+   var review=new PullRequestReviewService().build(validation);
+   assertEquals(validation.requirementChecks().size(),
+    review.statusCounts().values().stream().mapToInt(Integer::intValue).sum());
+   assertEquals("HUMAN_REVIEW_REQUIRED",review.decision());
+   assertThrows(UnsupportedOperationException.class,()->review.checks().get(ValidationStatus.SATISFIED).add(null));
+   String reviewMarkdown=PullRequestReviewRenderer.markdown(review);
+   assertTrue(reviewMarkdown.contains("| Status | Count |"));
+   assertTrue(reviewMarkdown.contains("## MISSING checks"));
+   assertTrue(reviewMarkdown.contains("## UNVERIFIABLE checks"));
+   assertTrue(reviewMarkdown.contains("does not approve the change"));
    var missingTests=new ImplementationValidationService().validate(plan,List.of(
     new GitChange("producer","M","Producer.java",null,sha,"b".repeat(40))));
    assertTrue(missingTests.requirementChecks().stream().anyMatch(c->c.status()==ValidationStatus.MISSING));
